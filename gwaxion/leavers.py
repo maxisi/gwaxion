@@ -50,12 +50,20 @@ class SpinWeightedSpheroidalHarmonic(object):
             'converged': None,
             'mode': None
         }
+        self._eigenfunction = None
+        self.eigenfunction_properties = {
+            'nmax': None
+        }
+        self._swsh = None
         # auxiliary quantities
         self._km = 0.5*np.abs(m - s)
         self._kp = 0.5*np.abs(m + s)
         # analytic expression for the eigenvalue Alm valid for c=0, and 
         # starting point of numerical computation otherwise.
         self._sep0 = l*(l + 1.) - s*(s + 1.) - (2.*m*s**2)*c/(l*(l + 1.))
+
+    def __call__(self, theta, phi):
+        return self.swsh(theta, phi)
 
 
     # ---------------------------------------------------------------------
@@ -112,6 +120,11 @@ class SpinWeightedSpheroidalHarmonic(object):
             # try whether `mode` is one of the methods accepted by `root` 
             from scipy.optimize import root
             sep = root(self._Leaver33ang, self._sep0, method=mode)
+        # update derivative products if they exist
+        if self._swsh is not None:
+            nmax_funct = self.eigenfunction_properties['nmax']
+            self.compute_eigenfunction(nmax=nmax_funct)
+            self._produce_swsh()
         return sep
 
     def compute_eigenvalue(self, *args, **kwargs):
@@ -136,14 +149,34 @@ class SpinWeightedSpheroidalHarmonic(object):
         return self._eigenvalue
 
     @property
-    def eigenvalue(self, *args, **kwargs):
+    def eigenvalue(self):
         if self._eigenvalue is None:
-            self.compute_eigenvalue(*args, **kwargs)
+            self.compute_eigenvalue()
         return self._eigenvalue
 
     # ---------------------------------------------------------------------
     # EIGENFUNCTION COMPUTATION
     def compute_eigenfunction(self, nmax=20):
+        """ Compute spheroidal harmonic Slm(x), with `x = cos(theta)`, where
+        `theta` is the polar angle.
+
+        Uses recursive formula from Eq. (18) in Leaver [Eq. (2.5) in Berti].
+        The function is normalized such that
+            \int_{-1}^{1} |Slm(x)|^2 dx = 1
+
+        NOTE: does not include azimuthal dependence (i.e. not spin-weighted).
+
+        Arguments
+        ---------
+        nmax : int
+            iteration depth for sum in Eq. (18), higher for greater accuracy.
+            (default: 20)
+
+        Returns
+        -------
+        slm_normed : funct
+            normalized spheroidal harmonic.
+        """
         alpha = self._alpha
         beta = lambda n: self._beta(n, self.eigenvalue)
         gamma = self._gamma
@@ -156,11 +189,76 @@ class SpinWeightedSpheroidalHarmonic(object):
         for i in range(1, nmax):
             an[i+1] = (-beta(i)*an[i] - gamma(i)*an[i-1]) / alpha(i)
         # compute eigenfunction using Leavers equation [x = cos(theta)]
-        # Eq. (2.5) in Berti et al.
+        # Eq. (18) in Leaver [or Eq. (2.5) in Berti et al.]
         slm = lambda x: np.exp(c*x) * (1+x)**self._km * (1-x)**self._kp * \
                         np.sum(an*(1+x)**np.arange(nmax+1))
         # normalize
         norm_integrand = lambda x: 2*np.pi*slm(x)*np.conj(slm(x))
         norm = np.sqrt(quad(norm_integrand, -1., 1.)[0])
         slm_normed = lambda x: slm(x)/norm
+        self._eigenfunction = slm_normed
+        # update derivative products if they exist already
+        if self._swsh is not None:
+            self._produce_swsh()
         return slm_normed
+
+    @property
+    def eigenfunction(self):
+        """ Spheroidal harmonic function.
+
+        Arguments
+        ---------
+        x : float
+            polar parameter `x = cos(theta)` for `theta` the polar angle.
+
+        Returns
+        -------
+        Slm : float
+            value of spheroidal harmonic at specified value of cos(theta).
+        """
+        if self._eigenfunction is None:
+            self.compute_eigenfunction()
+        return self._eigenfunction
+
+    def sh(self, theta):
+        """ Spheroidal harmonic (SH), Slm, as a function of polar angle.
+
+        NOTE: this is equivalent to
+            eigenfunction(np.cos(theta))
+
+        Arguments
+        ---------
+        theta : float
+            polar angle.
+
+        Returns
+        -------
+        Slm : float
+            value of SH evaluated at theta.
+        """
+        return self.eigenfunction(np.cos(theta))
+
+    def _produce_swsh(self):
+        m = self.m
+        self._swsh = lambda th, phi: np.exp(1j*m*phi)*self.sh(th)
+
+    @property
+    def swsh(self):
+        """ Spin-weighted spheroidal harmonic (SWSH), Ylm.
+
+        Arguments
+        ---------
+        theta : float
+            polar angle.
+        phi : float
+            azimuthal angle.
+
+        Returns
+        -------
+        Ylm : float
+            value of SWSH evaluated at specified values theta and phi.
+        """
+        if self._swsh is None:
+            self._produce_swsh()
+        return self._swsh
+
