@@ -45,12 +45,43 @@ class BlackHole(object):
         self._omegah = None
 
     def sigma(self, r, theta):
+        """ Kerr auxiliary length Sigma, function of radius and polar angle
+        in Boyer Lindquist coordinates.
+        
+        Arguments
+        ---------
+        r : float
+            BL radius (m)
+        theta : float
+            BL polar angle (rad).
+
+        Returns
+        -------
+        sigma : float
+            sigma (m).
+        """
         return r**2 + self.a**2 * np.cos(theta)**2
 
     def delta(self, r):
+        """ Kerr auxiliary length Delta, function of radius 
+        in Boyer Lindquist coordinates.
+        
+        Arguments
+        ---------
+        r : float
+            BL radius (m)
+
+        Returns
+        -------
+        delta : float
+            delta (m).
+        """
         return r**2 - self.rs * r + self.a**2
 
     def omega(self, r, theta):
+        """ Frame dragging angular frequency (rad) for Boyer-Lindquist radius
+        and polar angle.
+        """
         num = C_SI * self.rs * r * self.a
         den = self.sigma(r, theta)*(r**2 + self.a**2) + \
               self.rs * r * self.a**2 * np.sin(theta)**2
