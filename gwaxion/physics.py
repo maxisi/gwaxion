@@ -149,10 +149,118 @@ class Boson(object):
         self.mu_brito = C_SI * self.mass / HBAR_SI
 
 
+def qcd_axion_mass(fa):
+    '''Mass of QCD axion as a funcition of symmetry breaking scale.
+
+    See e.g. Eq. (2) in [arXiv:1004.3558]
+
+    Arguments
+    ---------
+    fa: float
+        Peccei-Quinn axion symmetry breaking scale in eV.
+
+    Returns
+    -------
+    mua: float
+        QCD axion mass in eV.
+    '''
+    return 6E-10 * (1E16 * 1E9 / fa)
+
+
+def hydrogenic_level(n, alpha):
+    ''' Return hydrogenic levels: (En / E0)
+
+    Arguments
+    ---------
+    n: float
+        *principal* quantum number `n = nr + l + 1`, for `nr` the radial
+        and `l` the azimuthal quantum numbers.
+
+    alpha: float
+        Fine-structure constant.
+
+    Returns
+    -------
+    level: float
+        dimensionless level (En / E0).
+    '''
+    return 1 - 0.5 * (alpha/n)**2
+
 class BlackHoleBoson(object):
     def __init__(self, m_bh, chi_bh, m_b, spin_weight=0, msun=True, ev=True):
         self.bh = BlackHole(m_bh, chi_bh, msun=msun)
         self.boson = Boson(m_b, spin=spin_weight, ev=ev)
-        # Fine-structure constant
-        self.alpha = (0.5*self.bh.rs) * self.boson.energy / (HBAR_SI * C_SI)
+        # Length ratio is unity when `2*pi*R = lambda_c`
+        # NOTE: in Brito et al., the length ratio is denoted by 'mu'
+        self.length_ratio = self.bh.rs / self.boson.reduced_compton_wavelength
+        # Fine-structure constant `G M m / (hbar c)`
+        self.alpha = 0.5 * self.lengh_ratio
 
+    def level(self, n):
+        return hydrogenic_level(n, self.alpha)
+
+    def level_energy(self, n, units='ev'):
+        ''' Return real part of hydrogenic energy eigenvalues.
+
+        Arguments
+        ---------
+        n: float
+            *principal* quantum number `n = nr + l + 1`, for `nr` the radial
+            and `l` the azimuthal quantum numbers.
+        '''
+        units = units.lower()
+        if units == 'ev':
+            mu = self.boson.energy_ev
+        elif units == 'si':
+            mu = self.boson.energy
+        elif units == 'none':
+            mu = 1
+        return mu * self.level(n)
+
+    def level_omega_im(self, n, units='ev'):
+        ''' Return imag part of hydrogenic energy eigen-frequencies in rad/s.
+
+        Arguments
+        ---------
+        n: float
+            *principal* quantum number `n = nr + l + 1`, for `nr` the radial
+            and `l` the azimuthal quantum numbers.
+
+        Returns
+        -------
+        omega: float
+            angular frequency of nth eigenmode in rad/s.
+        '''
+        return mu * (1 - self.alpha**2 / n**2)
+
+    def level_omega_re(self, n):
+        ''' Return real part of hydrogenic energy eigen-frequencies in rad/s.
+
+        Arguments
+        ---------
+        n: float
+            *principal* quantum number `n = nr + l + 1`, for `nr` the radial
+            and `l` the azimuthal quantum numbers.
+
+        Returns
+        -------
+        omega: float
+            angular frequency of nth eigenmode in rad/s.
+        '''
+        return self.level_energy(n, units='si') / HBAR_SI 
+
+    def level_dimensionless_omega(self, n):
+        ''' Return dimensionless hydrogenic eigen-frequencies.
+
+        Arguments
+        ---------
+        n: float
+            *principal* quantum number `n = nr + l + 1`, for `nr` the radial
+            and `l` the azimuthal quantum numbers.
+
+        Returns
+        -------
+        omega_dimless: float
+            dimensionless angular frequency of nth eigenmode in rad/s.
+        '''
+        return self.alpha * self.level_energy(n, units='none')
