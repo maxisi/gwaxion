@@ -142,7 +142,7 @@ class Boson(object):
             self.energy = mass * C_SI**2
             self.energy_ev = self.energy / EV_SI 
             # this last quantity is called `mu` by Arvanitaki et al.
-        self.spin_weight = spin
+        self.spin = spin
         self.reduced_compton_wavelength = HBAR_SI / (mass*C_SI)
         self.compton_wavelength = 2*np.pi*self.reduced_compton_wavelength
         # Other quantities
@@ -150,7 +150,7 @@ class Boson(object):
 
 
 def qcd_axion_mass(fa):
-    '''Mass of QCD axion as a funcition of symmetry breaking scale.
+    '''Mass of QCD axion as a function of symmetry breaking scale.
 
     See e.g. Eq. (2) in [arXiv:1004.3558]
 
@@ -186,10 +186,11 @@ def hydrogenic_level(n, alpha):
     '''
     return 1 - 0.5 * (alpha/n)**2
 
+
 class BlackHoleBoson(object):
-    def __init__(self, m_bh, chi_bh, m_b, spin_weight=0, msun=True, ev=True):
+    def __init__(self, m_bh, chi_bh, m_b, boson_spin=0, msun=True, ev=True):
         self.bh = BlackHole(m_bh, chi_bh, msun=msun)
-        self.boson = Boson(m_b, spin=spin_weight, ev=ev)
+        self.boson = Boson(m_b, spin=boson_spin, ev=ev)
         # Length ratio is unity when `2*pi*R = lambda_c`
         # NOTE: in Brito et al., the length ratio is denoted by 'mu'
         self.length_ratio = self.bh.rs / self.boson.reduced_compton_wavelength
@@ -249,7 +250,7 @@ class BlackHoleBoson(object):
         '''
         return self.level_energy(n, units='si') / HBAR_SI 
 
-    def level_dimensionless_omega(self, n):
+    def level_omega_dimensionless(self, n):
         ''' Return dimensionless hydrogenic eigen-frequencies.
 
         Arguments
@@ -264,3 +265,51 @@ class BlackHoleBoson(object):
             dimensionless angular frequency of nth eigenmode in rad/s.
         '''
         return self.alpha * self.level_energy(n, units='none')
+
+    def fgw(self, n):
+        ''' Returns main gravitational-wave frequency for level `n`.
+
+        fgw = 2*fre = 2*(wre/2pi) = wre/pi
+
+        Arguments
+        ---------
+        n: float
+            *principal* quantum number `n = nr + l + 1`, for `nr` the radial
+            and `l` the azimuthal quantum numbers.
+
+        Returns
+        -------
+        fgw: float
+            GW frequency in Hz.
+        '''
+        return self.level_omega_re(n) / np.pi
+
+    def omegagw_dimensionless(self, n):
+        return 2*self.level_omega_dimensionless(n)
+
+    def final_bh_spin(self, n, dimensionless=True):
+        ''' Returns saturation BH spin: that is, spin reached after SR condition
+        no longer satistified for this energy level [Eq. (25) in Brito et al.]
+
+        Arguments
+        ---------
+        n: float
+            *principal* quantum number `n = nr + l + 1`, for `nr` the radial
+            and `l` the azimuthal quantum numbers.
+
+        Returns
+        -------
+        '''
+        if dimensionless:
+            mwr = self.level_omega_dimensionless(n)
+            chif = 4*mwr / (1 + 4*mwr**2)
+        else:
+            raise NotImplementedError
+        return chif
+
+    def final_bh_mass(self, n):
+        mwr = self.level_omega_dimensionless(n)
+        return self.bh.mass * (1- mwr*(self.bh.chi - self.final_bh_spin(n)))
+
+    def cloud_mass(self, n):
+        return self.bh.mass - self.final_bh_mass(n)
