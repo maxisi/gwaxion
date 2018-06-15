@@ -60,8 +60,15 @@ def hydrogenic_level(n, alpha):
 # CLASSES
 
 class BlackHole(object):
-    def __init__(self, mass, chi, msun=False):
-        """ Black hole.
+    def __init__(self, mass, chi=None, a=None, j=None, msun=False):
+        """ Black hole of given mass and spin.
+
+        Can pass spin using the dimensionless parameter `chi`, or the 
+        Kerr parameter (dimensions of length) `a`, or the angular momentum
+        itself, `j`.
+        
+        Defaults to no spin (`chi=0`) and fails if more than one spin
+        parameters are provided.
 
         Arguments
         ---------
@@ -69,7 +76,13 @@ class BlackHole(object):
             mass in kg (or in MSUN, if `msun` is True).
 
         chi: float
-            dimensionless spin, `chi=(c^2/G)(a/M)` for `a=J/(Mc)`, in (0, 1).
+            dimensionless spin, `chi = (c^2/G)(a/M)`, in (0, 1) [opt].
+
+        a: float
+            Kerr parameter, `a = J/(Mc)`, in meters [opt].
+        
+        j: float
+            black-hole angular momentum, `J`, in SI units [opt].
 
         msun: bool
             whether `mass` is given in solar masses (def. False).
@@ -86,10 +99,19 @@ class BlackHole(object):
         self.rg = G_SI * mass / C_SI**2
         self.rs = 2 * self.rg
         # SPIN
-        self.chi = chi  # dimensionless
+        if sum([int(spin_param is None) for spin_param in [chi, a, j]]) < 2:
+            raise ValueError("can only take one spin parameter: chi, a, or J.")
+        elif a is not None:
+            chi = a / self.rg
+        elif j is not None:
+            chi = j / (self.mass * C_SI * self.rg)
+        elif chi is None:
+            # no spin provided, default to Schwarzschild
+            chi = 0
+        self.chi = chi
         self.a = self.rg * self.chi
         self.angular_momentum = self.mass * C_SI * self.a
-        # RADDI in natural units (G=M=c=1)
+        # RADII in natural units (G=M=c=1)
         self.rp_natural = 1 + np.sqrt(1 - self.chi**2)
         self.rm_natural = 1 - np.sqrt(1 - self.chi**2)
         self.rp = self.rg * self.rp_natural
@@ -245,8 +267,42 @@ class Alpha(object):
 
 
 class BlackHoleBoson(object):
-    def __init__(self, m_bh, chi_bh, m_b, boson_spin=0, msun=True, ev=True):
+    def __init__(self, bh, boson):
         """ System composed of a black-hole and a boson.
+
+        To create from parameters use `.from_parameters()` class method.
+
+        Arguments
+        ---------
+        bh: BlackHole
+            black-hole instance.
+        boson: Boson
+            boson instance.
+        """
+        self.bh = bh
+        self.boson = boson
+        # Fine-structure constant `G M m / (hbar c) = rg / lambda_bar_c`
+        self.alpha = self.bh.rg / self.boson.reduced_compton_wavelength
+        self.clouds = {}
+
+    # --------------------------------------------------------------------
+    # CLASS METHODS
+
+    @classmethod
+    def from_parameters(cls, **kwargs):
+        """ Create black-hole boson system from parameters.
+
+        Can pass any two of the mass parameters (m_bh, m_b, alpha) and
+        any one of the BH spin parameters (chi_bh, a_bh, j_bh).
+
+        The BH mass is assumed to be in units of MSUN, unless `msun=False` in
+        which case SI units are expected.
+
+        The boson mass is assumed to be in units of eV, unless `ev=False` in
+        which case SI units are expected.
+
+        The spin parameters (a_bh, j_bh) are always expected in SI units, while
+        `chi_bh` is dimensionless.
 
         Arguments
         ---------
@@ -258,28 +314,23 @@ class BlackHoleBoson(object):
             boson rest mass (eV, or SI if `ev` is False).
         boson_spin: int
             spin of boson field (0 for scalar, 1 for vector).
+        alpha: float
+            fine-structure constant.
         msun: bool
             BH mass provided in solar masses, rather than SI (def True).
         ev: bool
             boson mass provided in eV, rather than SI (def True).
         """
-        self.bh = BlackHole(m_bh, chi_bh, msun=msun)
-        self.boson = Boson(m_b, spin=boson_spin, ev=ev)
-        # Length ratio is unity when `2*pi*R = lambda_c`
-        # NOTE: in Brito et al., the length ratio is denoted by 'Mmu'
-        # self.length_ratio = self.bh.rs / self.boson.reduced_compton_wavelength
-        # Fine-structure constant `G M m / (hbar c) = rg / lambda_bar_c`
-        self.alpha = self.bh.rg / self.boson.reduced_compton_wavelength
+        s_b = kwargs.pop('boson_spin', 0)
+        bh_spin_kwargs = {k.strip('_bh'): kwargs.pop(k, None) for k in
+                          ['chi_bh', 'a_bh', 'j_bh']}
+        alpha = Alpha(**kwargs)
+        bh = BlackHole(alpha.m_bh, msun=False, **bh_spin_kwargs)
+        boson = Boson(alpha.m_b, spin=s_b, ev=False)
+        return cls(bh, boson)
 
-    @classmethod
-    def from_alpha(cls, **kwargs):
-        chi = kwargs.pop('chi_bh')
-        s = kwargs.pop('boson_spin', 0)
-        a = Alpha(**kwargs)
-        return cls(a.m_bh, chi, a.m_b, boson_spin=s, msun=False, ev=False)
-
-    def _level(self, n):
-        return hydrogenic_level(n, self.alpha)
+    # --------------------------------------------------------------------
+    # UTILITIES
 
     def _sr_factor(self, m):
         """ Super-radiance term for magnetic quantum number `m`.
@@ -307,6 +358,9 @@ class BlackHoleBoson(object):
 
     # --------------------------------------------------------------------
     # FREQUENCY
+
+    def _level(self, n):
+        return hydrogenic_level(n, self.alpha)
 
     def level_energy(self, n, units='ev'):
         ''' Return real part of hydrogenic energy eigenvalues.
@@ -342,8 +396,8 @@ class BlackHoleBoson(object):
         '''
         return self.alpha * self.level_energy(n, units='none')
 
-    def level_omega_re(self, n):
-        ''' Return real part of hydrogenic energy eigen-frequencies in rad/s.
+    def level_omega_re(self, n, method='hydrogen'):
+        ''' Return real part of energy eigen-frequencies in rad/s.
 
         Arguments
         ---------
@@ -356,9 +410,15 @@ class BlackHoleBoson(object):
         omega: float
             angular frequency of nth eigenmode in rad/s.
         '''
-        return self.boson.omega * self._level(n)
+        if method=='hydrogen':
+            w = self.boson.omega * self._level(n)
+        elif method=='numeric':
+            NotImplementedError("numeric frequency solutuions unavailable.")
+        else:
+            raise ValueError("unrecognized method %r." % method)
+        return w
 
-    def level_frequency(self, n):
+    def level_frequency(self, n, *args, **kwargs):
         ''' Return real part of hydrogenic energy eigen-frequencies in Hz.
 
         Arguments
@@ -372,7 +432,7 @@ class BlackHoleBoson(object):
         frequency: float
             frequency of n-th eigenmode in Hz.
         '''
-        return self.level_omega_re(n) / (2*np.pi)
+        return self.level_omega_re(n, *args, **kwargs) / (2*np.pi)
 
     # --------------------------------------------------------------------
     # GROWTH-RATE
@@ -484,39 +544,22 @@ class BlackHoleBoson(object):
         '''
         return self.level_omega_re(n) / np.pi
 
-    def omegagw_dimensionless(self, n):
-        return 2*self.level_omega_dimensionless(n)
+    # --------------------------------------------------------------------
+    # CLOUDS
 
-    def final_bh_spin(self, n, dimensionless=True):
-        ''' Returns saturation BH spin: that is, spin reached after SR condition
-        no longer satistified for this energy level [Eq. (25) in Brito et al.]
+    def _add_cloud(self, l, m, nr):
+        cloud = BosonCloud(self, l, m, nr)
+        self.clouds[(int(l), int(m), int(nr))] = cloud
 
-        Arguments
-        ---------
-        n: float
-            *principal* quantum number `n = nr + l + 1`, for `nr` the radial
-            and `l` the azimuthal quantum numbers.
-
-        Returns
-        -------
-        '''
-        if dimensionless:
-            mwr = self.level_omega_dimensionless(n)
-            chif = 4*mwr / (1 + 4*mwr**2)
-        else:
-            raise NotImplementedError
-        return chif
-
-    def final_bh_mass(self, n):
-        mwr = self.level_omega_dimensionless(n)
-        return self.bh.mass * (1- mwr*(self.bh.chi - self.final_bh_spin(n)))
-
-    def cloud_mass(self, n):
-        return self.bh.mass - self.final_bh_mass(n)
+    def cloud(self, l, m, nr):
+        key = (int(l), int(m), int(nr))
+        if key not in self.clouds:
+            self._add_cloud(*key)
+        return self.clouds[key]
 
 
 class BosonCloud(object):
-    def __init__(self, bhb, l, m, nr, msun=True, ev=True):
+    def __init__(self, bhb, l, m, nr):
         """ Boson cloud around a black hole, corresponding to single level.
 
         Arguments
@@ -529,17 +572,16 @@ class BosonCloud(object):
             magnetic quantum number.
         nr: int
             radial quantum number.
-        msun: bool
-            provide cloud mass in solar masses (def. True).
         """
         # check `bhb` is of the right type
-        self.bhb = bhb
+        self.bhb_initial = bhb
         try:
-            self.bhb.boson.reduced_compton_wavelength
-            self.bhb.bh.rg
+            self.bhb_initial.boson.reduced_compton_wavelength
+            self.bhb_initial.bh.rg
         except AttributeError:
             raise ValueError("'bhb' must be `BlackHoleBoson` instance, not %r"
                              % type(boson))
+        self.bh_initial = self.bhb_initial.bh
         # check consistency of quantum numbers
         if (0 <= l) & (np.abs(m) <= l) & (0 <= nr) & isinstance(nr*l*m, int):
             self.n = nr + l + 1  # principal quantum number
@@ -551,40 +593,123 @@ class BosonCloud(object):
                              % (l, m, nr))
         # set cloud properties
         self._growth_time = None
-        self.is_superradiant = self.bhb.is_superradiant(m)
+        self._is_superradiant = None
+        self._mass = None
+        self._mass_msun = None
         # set gravitational-wave properties
         self._fgw = None
         self.lgw = 2*l
         self.mgw = 2*m
         # others
-        self._final_bh = None
+        self._bh_final = None
+        self._bhb_final = None
+
+    # --------------------------------------------------------------------
+    # PROPERTIES
+
+    @property
+    def is_superradiant(self):
+        """ Indicates whether this energy level (l, m, n) is superradiant.
+        """
+        if self._is_superradiant is None:
+            self._is_superradiant = self.bhb_initial.is_superradiant(self.m)
+        return self._is_superradiant
 
     @property
     def fgw(self):
+        """ Gravitational-wave frequency (Hz).
+        """
         if self._fgw is None:
-            self._fgw = 2.*self.bhb.level_frequency(self.n)
+            # TODO: ask Richard, should rescale by *final* BH mass?
+            self._fgw = 2.*self.bhb_initial.level_frequency(self.n)
         return self._fgw
 
     @property
     def growth_time(self):
+        """ Superradiant instability timescale: `1/Im(omega)`.
+        """
         if self._growth_time is None:
-            self._final_bh = 1./self.bhb.level_omega_im(self.l, self.m, self.nr)
+            self._final_bh = 1./self.bhb_initial.level_omega_im(self.l, self.m, 
+                                                                self.nr)
         return self._growth_time
 
     @property
-    def final_bh(self):
-        if self._final_bh is None:
+    def bh_final(self):
+        """ Black-hole left at the end of superradiant cloud growth.
+        """
+        if self._bh_final is None:
             # final BH angular momentum from Eq. (25) in Brito et al.
-            w = self.bhb.level_omega_re(self.n)
-            rg = self.bhb.bh.rg # TODO: this should be the *final* rg...
-            chi_f = 4 * C_SI * w / ((C_SI*self.m)**2 + 4*(rg*w)**2)
+            # TODO: this should be the *final* BH params... solve numerically?
+            w = self.bhb_initial.level_omega_re(self.n)
+            rg = self.bh_initial.rg
+            chi_f = 4*C_SI*self.m*rg*w / ((C_SI*self.m)**2 + 4*(rg*w)**2)
             # final BH mass from Eq. (26) in Brito et al.
-            wn = self.bhb.level_omega_natural(self.n)
-            m_f = self.bhb.bh.mass * (1 - wn*(self.bhb.bh.chi - chi_f))
-            self._final_bh = BlackHole(m_f, chi_f) 
-        return self._final_bh
+            w_nat = self.bhb_initial.level_omega_natural(self.n)
+            m_f = self.bh_initial.mass*(1 - w_nat*(self.bh_initial.chi - chi_f))
+            self._bh_final = BlackHole(m_f, chi_f) 
+        return self._bh_final
+
+    @property
+    def bhb_final(self):
+        """ Black-hole-boson left at the end of superradiant cloud growth.
+        """
+        if self._bhb_final is None:
+            self._bhb_final = BlackHoleBoson(self.bh_final,
+                                             self.bhb_initial.boson)
+        return self._bhb_final
+
+    @property
+    def mass(self):
+        """ Maximum cloud mass (kg), reached at end of superradiant stage.
+        """
+        if self._mass is None:
+            self._mass = self.bh_initial.mass - self.bh_final.mass
+            self._mass_msun = self._mass / MSUN_SI
+        return self._mass
+
+    @property
+    def mass_msun(self):
+        """ Maximum cloud mass (MSUN), reached at end of superradiant stage.
+        """
+        if self._mass_msun is None:
+            self.mass
+        return self._mass_msun
+
+    # --------------------------------------------------------------------
+    # CLASS METHODS
 
     @classmethod
     def from_parameters(cls, l, m, nr, **kwargs):
-        bhb = BlackHoleBoson.from_alpha(**kwargs)
+        bhb = BlackHoleBoson.from_parameters(**kwargs)
         return cls(bhb, l, m, nr)
+
+
+class Zabs(object):
+    # Numerical fits to fine-structure constant alpha (`a`) provided by R Brito
+    # (set up this way to make it easier to add fits dynamically later.)
+    _FITS = {
+        (2, 2): lambda a: 0.7904787874157165*a**8 - 2.9417505987440284*a**9 +\
+                          2.803119859556814*a**10,
+        (3, 2): lambda a: 1.08158476738751*a**10 - 0.4006416305003071*a**12,
+    }
+    else:
+
+    def __init__(self, l, m):
+        self.l = int(l)
+        self.m = int(m)
+        self._alpha_fit = None
+
+    @property
+    def alpha_fit(self):
+        if self._alpha_fit is None:
+            key = (self.l, self.m)
+            if key in _FITS:
+                self._alpha_fit = _FITS[key]
+            else:
+                # TODO: add ability to produce fits dynamically here
+                raise NotImplementedError("no exisiting fit for (%i, %i)" % 
+                                          (self.l, self.m))
+        return self._alpha_fit
+
+    def __call__(self, alpha):
+        return self.alpha_fit(alpha)
