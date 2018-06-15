@@ -72,7 +72,7 @@ class BlackHole(object):
             dimensionless spin, `chi=(c^2/G)(a/M)` for `a=J/(Mc)`, in (0, 1).
 
         msun: bool
-            whether `mass` is given in solar masses.
+            whether `mass` is given in solar masses (def. False).
         """
         # MASS
         if msun:
@@ -550,12 +550,39 @@ class BosonCloud(object):
             raise ValueError("invalid quantum numbers (l, m, nr) = (%r, %r, %r)"
                              % (l, m, nr))
         # set cloud properties
-        self.growth_time = 1./self.bhb.level_omega_im(self.l, self.m, self.nr)
+        self._growth_time = None
         self.is_superradiant = self.bhb.is_superradiant(m)
         # set gravitational-wave properties
-        self.fgw = 2*self.bhb.level_frequency(self.n)
+        self._fgw = None
         self.lgw = 2*l
         self.mgw = 2*m
+        # others
+        self._final_bh = None
+
+    @property
+    def fgw(self):
+        if self._fgw is None:
+            self._fgw = 2.*self.bhb.level_frequency(self.n)
+        return self._fgw
+
+    @property
+    def growth_time(self):
+        if self._growth_time is None:
+            self._final_bh = 1./self.bhb.level_omega_im(self.l, self.m, self.nr)
+        return self._growth_time
+
+    @property
+    def final_bh(self):
+        if self._final_bh is None:
+            # final BH angular momentum from Eq. (25) in Brito et al.
+            w = self.bhb.level_omega_re(self.n)
+            rg = self.bhb.bh.rg # TODO: this should be the *final* rg...
+            chi_f = 4 * C_SI * w / ((C_SI*self.m)**2 + 4*(rg*w)**2)
+            # final BH mass from Eq. (26) in Brito et al.
+            wn = self.bhb.level_omega_natural(self.n)
+            m_f = self.bhb.bh.mass * (1 - wn*(self.bhb.bh.chi - chi_f))
+            self._final_bh = BlackHole(m_f, chi_f) 
+        return self._final_bh
 
     @classmethod
     def from_parameters(cls, l, m, nr, **kwargs):
