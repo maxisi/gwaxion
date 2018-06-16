@@ -605,10 +605,19 @@ class BosonCloud(object):
         self.lgw = 2*l
         self.mgw = 2*m
         self._swsh = None
+        self._waveform = None
         # others
         self._bh_final = None
         self._bhb_final = None
         self._zabs = None
+
+    # --------------------------------------------------------------------
+    # CLASS METHODS
+
+    @classmethod
+    def from_parameters(cls, l, m, nr, **kwargs):
+        bhb = BlackHoleBoson.from_parameters(**kwargs)
+        return cls(bhb, l, m, nr)
 
     # --------------------------------------------------------------------
     # PROPERTIES
@@ -706,16 +715,23 @@ class BosonCloud(object):
             c =  self.bh_final.chi * wgw * self.bh_final.tg
             l = self.lgw
             m = self.mgw
-            s = 2  # spin-weight of GWs
-            self._swsh = leavers.SpinWeightedSpheroidalHarmonic(c, l, m, s)
+            s = -2  # spin-weight of GWs
+            self._swsh = (leavers.SpinWeightedSpheroidalHarmonic(c, l, m, s),
+                          leavers.SpinWeightedSpheroidalHarmonic(c, l, -m, s))
         return self._swsh
-    # --------------------------------------------------------------------
-    # CLASS METHODS
-
-    @classmethod
-    def from_parameters(cls, l, m, nr, **kwargs):
-        bhb = BlackHoleBoson.from_parameters(**kwargs)
-        return cls(bhb, l, m, nr)
+    
+    @property
+    def waveform(self):
+        if self._waveform is None:
+            phi = 0
+            wgw = 2*np.pi*self.fgw
+            swsh_p, swsh_m = self.swsh
+            hp = lambda th, t: self.h0r*np.cos(wgw*t)*(swsh_p(th, phi) +
+                                                       swsh_m(th, phi)).real
+            hc = lambda th, t: self.h0r*np.cos(wgw*t)*(swsh_p(th, phi) -
+                                                       swsh_m(th, phi)).real
+            self._waveform = (hp, hc)
+        return self._waveform
 
 
 class Zabs(object):
