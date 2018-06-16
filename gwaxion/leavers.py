@@ -177,6 +177,7 @@ class SpinWeightedSpheroidalHarmonic(object):
         slm_normed : funct
             normalized spheroidal harmonic.
         """
+        self.eigenfunction_properties['nmax'] = nmax
         alpha = self._alpha
         beta = lambda n: self._beta(n, self.eigenvalue)
         gamma = self._gamma

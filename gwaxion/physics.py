@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.misc import factorial
+from . import leavers
 
 try:
     # if LAL is available, import constants for better accuracy (?)
@@ -98,6 +99,8 @@ class BlackHole(object):
         # LENGTHSCALE
         self.rg = G_SI * mass / C_SI**2
         self.rs = 2 * self.rg
+        # TIMESCALE
+        self.tg = self.rg / C_SI
         # SPIN
         if sum([int(spin_param is None) for spin_param in [chi, a, j]]) < 2:
             raise ValueError("can only take one spin parameter: chi, a, or J.")
@@ -597,12 +600,15 @@ class BosonCloud(object):
         self._mass = None
         self._mass_msun = None
         # set gravitational-wave properties
+        self._h0r = None
         self._fgw = None
         self.lgw = 2*l
         self.mgw = 2*m
+        self._swsh = None
         # others
         self._bh_final = None
         self._bhb_final = None
+        self._zabs = None
 
     # --------------------------------------------------------------------
     # PROPERTIES
@@ -675,6 +681,34 @@ class BosonCloud(object):
             self.mass
         return self._mass_msun
 
+    @property
+    def zabs(self):
+        if self._zabs is None:
+            # TODO: final or initial alpha?
+            self._zabs = Zabs(self.lgw, self.mgw)(self.bhb_final.alpha)
+        return self._zabs
+
+    @property
+    def h0r(self):
+        """ Strain amplitude 1m away from the source (`h0r = h0*r`).
+        """
+        if self._h0r is None:
+            wgw = 2*np.pi*self.fgw
+            m_bh = self.bh_final.mass  # TODO: initial mass?
+            m_c = self.mass
+            self._h0r = (C_SI**4/G_SI) * 2.*self.zabs*m_c / (wgw*m_bh)**2
+        return self._h0r
+
+    @property
+    def swsh(self):
+        if self._swsh is None:
+            wgw = 2*np.pi*self.fgw
+            c =  self.bh_final.chi * wgw * self.bh_final.tg
+            l = self.lgw
+            m = self.mgw
+            s = 2  # spin-weight of GWs
+            self._swsh = leavers.SpinWeightedSpheroidalHarmonic(c, l, m, s)
+        return self._swsh
     # --------------------------------------------------------------------
     # CLASS METHODS
 
@@ -687,12 +721,12 @@ class BosonCloud(object):
 class Zabs(object):
     # Numerical fits to fine-structure constant alpha (`a`) provided by R Brito
     # (set up this way to make it easier to add fits dynamically later.)
+    # NOTE: these fits assume `chi = chi_f`, could generalize to arbitrary spin
     _FITS = {
         (2, 2): lambda a: 0.7904787874157165*a**8 - 2.9417505987440284*a**9 +\
                           2.803119859556814*a**10,
         (3, 2): lambda a: 1.08158476738751*a**10 - 0.4006416305003071*a**12,
     }
-    else:
 
     def __init__(self, l, m):
         self.l = int(l)
@@ -703,8 +737,8 @@ class Zabs(object):
     def alpha_fit(self):
         if self._alpha_fit is None:
             key = (self.l, self.m)
-            if key in _FITS:
-                self._alpha_fit = _FITS[key]
+            if key in self._FITS:
+                self._alpha_fit = self._FITS[key]
             else:
                 # TODO: add ability to produce fits dynamically here
                 raise NotImplementedError("no exisiting fit for (%i, %i)" % 
