@@ -199,8 +199,8 @@ class SpinWeightedSpheroidalHarmonic(object):
         slm_normed = lambda x: slm(x)/norm
         self._eigenfunction = slm_normed
         # update derivative products if they exist already
-        if self._swsh is not None:
-            self._produce_swsh()
+        # if self._swsh is not None:
+        #     self._produce_swsh()
         return slm_normed
 
     @property
@@ -240,8 +240,7 @@ class SpinWeightedSpheroidalHarmonic(object):
         return self.eigenfunction(np.cos(theta))
 
     def _produce_swsh(self):
-        m = self.m
-        self._swsh = lambda th, phi: np.exp(1j*m*phi)*self.sh(th)
+        self._swsh = lambda th, phi: np.exp(1j*self.m*phi)*self.sh(th)
 
     @property
     def swsh(self):
