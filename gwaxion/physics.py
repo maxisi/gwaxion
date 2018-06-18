@@ -547,6 +547,30 @@ class BlackHoleBoson(object):
         '''
         return self.level_omega_re(n) / np.pi
 
+    def max_growth_rate(self, l_min=0, m_min=0, nr_min=0, l_max=5, m_max=5,
+                        nr_max=5, **kwargs): 
+        """ Search for level with fastest superradiant growth rate.
+
+        Arguments
+        ---------
+        l_min: int
+            minimum azimuthal quantum number.
+        m_min: int
+            minimum magnetic quantum number.
+        nr_min: int
+            minimum radial quantum number.
+        l_max: int
+            maximum azimuthal quantum number.
+        m_max: int
+            maximum magnetic quantum number.
+        nr_max: int
+            maximum radial quantum number.
+
+        Returns
+        -------
+        """
+        # Want smallest l, with highest m that satisfies SR condition.
+
     # --------------------------------------------------------------------
     # CLOUDS
 
