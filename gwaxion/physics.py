@@ -547,29 +547,50 @@ class BlackHoleBoson(object):
         '''
         return self.level_omega_re(n) / np.pi
 
-    def max_growth_rate(self, l_min=0, m_min=0, nr_min=0, l_max=5, m_max=5,
-                        nr_max=5, **kwargs): 
+    def max_growth_rate(self, l_min=0, nr_min=0, l_max=5, nr_max=5, **kwargs): 
         """ Search for level with fastest superradiant growth rate.
 
         Arguments
         ---------
         l_min: int
-            minimum azimuthal quantum number.
-        m_min: int
-            minimum magnetic quantum number.
+            minimum azimuthal quantum number (def. 0).
         nr_min: int
-            minimum radial quantum number.
+            minimum radial quantum number (def. 0).
         l_max: int
-            maximum azimuthal quantum number.
-        m_max: int
-            maximum magnetic quantum number.
+            maximum azimuthal quantum number (def. 5).
         nr_max: int
-            maximum radial quantum number.
+            maximum radial quantum number (def. 5).
 
         Returns
         -------
+        l_best:
+            azimuthal quantum number of fastest-growing level.
+        m_best:
+            magnetic quantum number of fastest-growing level.
+        nr_best:
+            radial quantum number of fastest-growing level.
+        rate_best:
+            growth rate (Hz) of fastest-growing level.
         """
-        # Want smallest l, with highest m that satisfies SR condition.
+        # Given the way the SR rate scales with `l`, we want the smallest `l`,
+        # with highest `m` that satisfies SR condition.
+        # TODO: is this true for vectors?
+        if self.alpha > 0.5:
+            # cannot satisfy SR condition
+            return 0, 0, 0, 0
+        else:
+            # TODO: this can be optimized
+            ls, ms, nrs, rates = [], [], [], []
+            for l in range(l_min, l_max+1):
+                for m in range(0, l+1):
+                    for nr in range(nr_min, nr_max+1):
+                        rate = self.level_omega_im(l, m, nr, **kwargs)
+                        ls.append(l)
+                        ms.append(m)
+                        nrs.append(nr)
+                        rates.append(rate)
+            i = rates.index(max(rates))
+            return ls[i], ms[i], nrs[i], rates[i]
 
     # --------------------------------------------------------------------
     # CLOUDS
