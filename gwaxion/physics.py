@@ -563,13 +563,13 @@ class BlackHoleBoson(object):
 
         Returns
         -------
-        l_best:
+        l_best: int
             azimuthal quantum number of fastest-growing level.
-        m_best:
+        m_best: int
             magnetic quantum number of fastest-growing level.
-        nr_best:
+        nr_best: int
             radial quantum number of fastest-growing level.
-        rate_best:
+        rate_best: float
             growth rate (Hz) of fastest-growing level.
         """
         # Given the way the SR rate scales with `l`, we want the smallest `l`,
@@ -599,7 +599,39 @@ class BlackHoleBoson(object):
         cloud = BosonCloud(self, l, m, nr)
         self.clouds[(int(l), int(m), int(nr))] = cloud
 
+    def best_cloud(self, *args, **kwargs):
+        """ Retrieve (or create) cloud with fastest SR growth-rate.
+
+        All arguments passed to growth-rate function.
+
+        Returns
+        -------
+        cloud: Cloud
+            cloud object for given quantum numbers.
+        """
+        l, m, nr, _ = self.max_growth_rate(*args, **kwargs)
+        key = (int(l), int(m), int(nr))
+        if key not in self.clouds:
+            self._add_cloud(*key)
+        return self.clouds[key]
+
     def cloud(self, l, m, nr):
+        """ Retrieve (or create) cloud of given level.
+
+        Arguments
+        ---------
+        l: int
+            azimuthal quantum number.
+        m: int
+            magnetic quantum number.
+        nr: int
+            radial quantum number.
+
+        Returns
+        -------
+        cloud: Cloud
+            cloud object for given quantum numbers.
+        """
         key = (int(l), int(m), int(nr))
         if key not in self.clouds:
             self._add_cloud(*key)
