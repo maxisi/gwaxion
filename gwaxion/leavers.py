@@ -120,11 +120,6 @@ class SpinWeightedSpheroidalHarmonic(object):
             # try whether `mode` is one of the methods accepted by `root` 
             from scipy.optimize import root
             sep = root(self._Leaver33ang, self._sep0, method=mode)
-        # update derivative products if they exist
-        # if self._swsh is not None:
-        #     nmax_funct = self.eigenfunction_properties['nmax']
-        #     self.compute_eigenfunction(nmax=nmax_funct)
-        #     self._produce_swsh()
         return sep
 
     def compute_eigenvalue(self, *args, **kwargs):
@@ -146,6 +141,11 @@ class SpinWeightedSpheroidalHarmonic(object):
             self._eigenvalue = self._sep0
         else:
             self._eigenvalue = self._compute_eigenvalue(*args, **kwargs)
+        # update derivative products if they exist
+        if self._swsh is not None:
+            nmax_funct = self.eigenfunction_properties['nmax']
+            self.compute_eigenfunction(nmax=nmax_funct)
+            self._produce_swsh()
         return self._eigenvalue
 
     @property
