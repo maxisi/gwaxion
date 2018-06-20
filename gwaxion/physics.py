@@ -805,7 +805,7 @@ class BosonCloud(object):
             swsh_p, swsh_m = self.swsh
             hp = lambda th, t: self.h0r*np.cos(wgw*t)*(swsh_p(th, phi) +
                                                        swsh_m(th, phi)).real
-            hc = lambda th, t: self.h0r*np.cos(wgw*t)*(swsh_p(th, phi) -
+            hc = lambda th, t: self.h0r*np.sin(wgw*t)*(swsh_p(th, phi) -
                                                        swsh_m(th, phi)).real
             self._waveform = (hp, hc)
         return self._waveform
