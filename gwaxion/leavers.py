@@ -207,12 +207,14 @@ class SpinWeightedSpheroidalHarmonic(object):
             an[i+1] = (-beta(i)*an[i] - gamma(i)*an[i-1]) / alpha(i)
         # compute eigenfunction using Leavers equation [x = cos(theta)]
         # Eq. (18) in Leaver [or Eq. (2.5) in Berti et al.]
-        slm = lambda x: np.exp(c*x) * (1+x)**self._km * (1-x)**self._kp * \
-                        np.sum(an*(1+x)**np.arange(nmax+1))
+        def slm(x):
+            return np.exp(c*x) * (1+x)**self._km * (1-x)**self._kp * \
+                   np.sum(an*(1+x)**np.arange(nmax+1))
         # normalize
         norm_integrand = lambda x: 2*np.pi*slm(x)*np.conj(slm(x))
         norm = np.sqrt(quad(norm_integrand, -1., 1.)[0])
-        slm_normed = lambda x: slm(x)/norm
+        def slm_normed(x):
+            return slm(x)/norm
         self._eigenfunction = slm_normed
         # update derivative products if they exist already
         if self._swsh is not None:
@@ -253,13 +255,15 @@ class SpinWeightedSpheroidalHarmonic(object):
         Slm : float
             value of SH evaluated at theta.
         """
+        # if np.isscalar(theta):
+        #     slm = self.eigenfunction(np.cos(theta))
+        # else:
+        #     slm = np.array([self.eigenfunction(np.cos(th)) for th in theta])
+        # return slm
         return self.eigenfunction(np.cos(theta))
+                
 
-    def _produce_swsh(self):
-        self._swsh = lambda th, phi: np.exp(1j*self.m*phi)*self.sh(th)
-
-    @property
-    def swsh(self):
+    def swsh(self, theta, phi):
         """ Spin-weighted spheroidal harmonic (SWSH), Ylm.
 
         Arguments
@@ -274,7 +278,5 @@ class SpinWeightedSpheroidalHarmonic(object):
         Ylm : float
             value of SWSH evaluated at specified values theta and phi.
         """
-        if self._swsh is None:
-            self._produce_swsh()
-        return self._swsh
+        return np.exp(1j*self.m*phi)*self.sh(theta)
 

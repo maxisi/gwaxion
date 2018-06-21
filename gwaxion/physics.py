@@ -693,12 +693,9 @@ class BosonCloud(object):
         self._mass = None
         self._mass_msun = None
         # set gravitational-wave properties
+        self._gw = None
         self._h0r = None
         self._fgw = None
-        self.lgw = 2*l
-        self.mgw = 2*m
-        self._swsh = None
-        self._waveform = None
         # others
         self._bh_final = None
         self._bhb_final = None
@@ -722,15 +719,6 @@ class BosonCloud(object):
         if self._is_superradiant is None:
             self._is_superradiant = self.bhb_initial.is_superradiant(self.m)
         return self._is_superradiant
-
-    @property
-    def fgw(self):
-        """ Gravitational-wave frequency (Hz).
-        """
-        if self._fgw is None:
-            # TODO: ask Richard, should rescale by *final* BH mass?
-            self._fgw = 2.*self.bhb_initial.level_frequency(self.n)
-        return self._fgw
 
     @property
     def growth_time(self):
@@ -783,48 +771,37 @@ class BosonCloud(object):
             self.mass
         return self._mass_msun
 
+    # --------------------------------------------------------------------
+    # GW PROPERTIES
+
+    @property
+    def fgw(self):
+        """ Gravitational-wave frequency (Hz).
+        """
+        if self._fgw is None:
+            # TODO: ask Richard, should rescale by *final* BH mass?
+            self._fgw = 2.*self.bhb_initial.level_frequency(self.n)
+        return self._fgw
+
     @property
     def zabs(self):
         if self._zabs is None:
             # TODO: final or initial alpha?
-            self._zabs = Zabs(self.lgw, self.mgw)(self.bhb_final.alpha)
+            self._zabs = Zabs(2*self.l, 2*self.m)(self.bhb_final.alpha)
         return self._zabs
 
     @property
-    def h0r(self):
-        """ Strain amplitude 1m away from the source (`h0r = h0*r`).
-        """
-        if self._h0r is None:
+    def gw(self):
+        if self._gw is None:
+            # intrinsic amplitude, 1m away from the source (`h0r = h0*r`).
             wgw = 2*np.pi*self.fgw
             m_bh = self.bh_final.mass  # TODO: initial mass?
             m_c = self.mass
-            self._h0r = (C_SI**4/G_SI) * 2.*self.zabs*m_c / (wgw*m_bh)**2
-        return self._h0r
-
-    @property
-    def swsh(self):
-        if self._swsh is None:
-            wgw = 2*np.pi*self.fgw
-            c =  self.bh_final.chi * wgw * self.bh_final.tg
-            l = self.lgw
-            m = self.mgw
-            s = -2  # spin-weight of GWs
-            self._swsh = (leavers.SpinWeightedSpheroidalHarmonic(c, l, m, s),
-                          leavers.SpinWeightedSpheroidalHarmonic(c, l, -m, s))
-        return self._swsh
-    
-    @property
-    def waveform(self):
-        if self._waveform is None:
-            phi = 0
-            wgw = 2*np.pi*self.fgw
-            swsh_p, swsh_m = self.swsh
-            hp = lambda th, t: self.h0r*np.cos(wgw*t)*(swsh_p(th, phi) +
-                                                       swsh_m(th, phi)).real
-            hc = lambda th, t: self.h0r*np.sin(wgw*t)*(swsh_p(th, phi) -
-                                                       swsh_m(th, phi)).real
-            self._waveform = (hp, hc)
-        return self._waveform
+            h0r = (C_SI**4/G_SI) * 2.*self.zabs*m_c / (wgw*m_bh)**2
+            # SWSH spin parameter: dimensionless (spin x omega_gw)
+            c = self.bh_final.chi * 2*np.pi*self.fgw * self.bh_final.tg
+            self._gw = StrainMode(c, 2*self.l, 2*self.m, self.fgw, h0r=h0r)
+        return self._gw
 
 
 class Zabs(object):
@@ -860,3 +837,82 @@ class Zabs(object):
     @staticmethod
     def fit22(a):
         return Zabs._FITS[2, 2](a)
+
+
+class StrainMode(object):
+    def __init__(self, c, l, m, f, h0r=1, r0=1):
+        self.c = c
+        self.l = l
+        self.m = m
+        self.f = f
+        self.omega = 2*np.pi*self.f
+        self.h0r = h0r
+        self.r0 = r0
+        self._swsh = None
+        self._polarizations = None
+
+    @property
+    def swshs(self):
+        if self._swsh is None:
+            c =  self.c
+            l = self.l
+            m = self.m
+            s = -2  # spin-weight of GWs
+            self._swsh = (leavers.SpinWeightedSpheroidalHarmonic(c, l, m, s),
+                           leavers.SpinWeightedSpheroidalHarmonic(c, l, -m, s))
+        return self._swsh
+    
+    @property
+    def polarizations(self):
+        if self._polarizations is None:
+            wgw = self.omega
+            m = self.m
+            swsh_p, swsh_m = self.swshs
+            def hp(theta, phi, t):
+                return np.cos(wgw*t + m*phi)*(swsh_p(theta, phi) +
+                                              swsh_m(theta, phi)).real
+            def hc(theta, phi, t):
+                return np.sin(wgw*t + m*phi)*(swsh_p(theta, phi)-
+                                              swsh_m(theta, phi)).real
+            self._polarizations = (hp, hc)
+        return self._polarizations
+
+    def hp(self, *args, **kwargs):
+        """ Plus polarization (unit amplitude).
+
+        Arguments
+        ---------
+        theta: float
+            inclination angle
+        phi: float
+            orbital phase (azimuthal angle)
+        t: float, array
+            times.
+
+        Returns
+        -------
+        hp: array
+            plus polarization waveform for given times.
+        """
+        r = kwargs.pop('r', self.r0)
+        return (self.r0 / r)*self.polarizations[0](*args, **kwargs)
+
+    def hc(self, *args, **kwargs):
+        """ Cross polarization (unit amplitude).
+
+        Arguments
+        ---------
+        theta: float
+            inclination angle
+        phi: float
+            orbital phase (azimuthal angle)
+        t: float, array
+            times.
+
+        Returns
+        -------
+        hp: array
+            cross polarization waveform for given times.
+        """
+        r = kwargs.pop('r', self.r0)
+        return (self.r0 / r)*self.polarizations[1](*args, **kwargs)
