@@ -856,3 +856,7 @@ class Zabs(object):
 
     def __call__(self, alpha):
         return self.alpha_fit(alpha)
+
+    @staticmethod
+    def fit22(a):
+        return Zabs._FITS[2, 2](a)
