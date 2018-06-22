@@ -75,7 +75,7 @@ def hydrogenic_level(n, alpha):
 
 
 # TODO: make these static methods of BlackHoleBoson?
-def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=PC_SI*1E3, 
+def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=1,
                      msun=True, ev=True):
     """ Analytic approximation to the peak BHB scalar strain from Arvanitaki+.
 
@@ -92,7 +92,7 @@ def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=PC_SI*1E3,
         ev = True
     a = Alpha(alpha=alpha, m_bh=m_bh, m_b=m_b, msun=msun, ev=ev)
     if f is None:
-        f = a.m_b_ev / (HBAR_SI*np.pi)
+        f = a.fgw
     h0 = 1E-24 * (a.alpha/0.1)**8 * (PC_SI*1E3/d) * (1E-12/a.m_b_ev)
     return h0, f
 
@@ -188,7 +188,7 @@ class BlackHole(object):
         self.area = 4*np.pi*(self.rp**2 + self.a**2)
         self.area_natural = 8 * np.pi * self.rp_natural
         # SR-SPECIFIC
-        self._h0r_fits = None
+        self._h0r_fits = {}
 
     def sigma(self, r, theta):
         """ Kerr auxiliary length Sigma, function of radius and polar angle
@@ -250,7 +250,7 @@ class BlackHole(object):
     # --------------------------------------------------------------------
     # UTILITIES
 
-    def scan_alphas(self, l=1, m=1, nr=0, delta_alpha=0.01, alpha_min=0.001,
+    def scan_alphas(self, l=1, m=1, nr=0, delta_alpha=0.001, alpha_min=0.001,
                     alpha_max=0.5):
         alphas = np.arange(alpha_min, alpha_max, delta_alpha)
         h0rs, fgws = [], []
@@ -277,7 +277,7 @@ class BlackHole(object):
             from scipy.interpolate import interp1d
             h0rs, fgws, _ = self.scan_alphas(**kwargs)
             self._h0r_fits[(l, m)] = interp1d(fgws, h0rs)
-        return self._h0r_fit[(l, m)](f)
+        return self._h0r_fits[(l, m)](f)
 
     def fgw(self, alpha=None, l=1, nr=0, m_b=None, ev=True):
         a = Alpha(m_bh=self.mass_msun, alpha=alpha, m_b=m_b, ev=ev)
