@@ -17,6 +17,7 @@
 import numpy as np
 from scipy.misc import factorial
 from . import leavers
+from .utilities import *
 
 try:
     # if LAL is available, import constants for better accuracy (?)
@@ -248,6 +249,7 @@ class BlackHole(object):
 
     # --------------------------------------------------------------------
     # UTILITIES
+
     def scan_alphas(self, l=1, m=1, nr=0, delta_alpha=0.01, alpha_min=0.001,
                     alpha_max=0.5):
         alphas = np.arange(alpha_min, alpha_max, delta_alpha)
@@ -265,6 +267,9 @@ class BlackHole(object):
         i_max = np.where(h0rs==h0r_max)[0][0]
         return h0r_max, fgws[i_max], alphas[i_max]
 
+    # NOTE: currently, this is essentially just refitting Zabs, which is a bit dumb... 
+    # though the total mass of the cloud is also used, which might be computed 
+    # numerically in the future to make the code more precise---so leave this.
     def h0r_fit(self, f, **kwargs):
         l = int(kwargs.pop('l', 1))
         m = int(kwargs.pop('m', 1))
@@ -273,6 +278,11 @@ class BlackHole(object):
             h0rs, fgws, _ = self.scan_alphas(**kwargs)
             self._h0r_fits[(l, m)] = interp1d(fgws, h0rs)
         return self._h0r_fit[(l, m)](f)
+
+    def fgw(self, alpha=None, l=1, nr=0, m_b=None, ev=True):
+        a = Alpha(m_bh=self.mass_msun, alpha=alpha, m_b=m_b, ev=ev)
+        level_correction = hydrogenic_level(l+nr+1, a.alpha)
+        return level_correction * a.fgw
 
 
 class Boson(object):
@@ -330,22 +340,16 @@ class Alpha(object):
             boson mass provided in eV, rather than SI (def True).
 
         """
-        if msun and m_bh is not None:
-            self.m_bh_msun = m_bh
+        if m_bh is not None and msun:
             m_bh = MSUN_SI*m_bh
-        else:
-            self.m_bh_msun = None
-        if ev and m_b is not None:
-            self.m_b_ev = m_b
+        if m_b is not None and ev:
             m_b = m_b * EV_SI / C_SI**2
-        else:
-            self.m_b_ev = None
         self.m_bh = m_bh
         self.m_b = m_b
         if all([p is not None for p in [m_bh, m_b, alpha]]):
             # check consistency
-            alpha_new = self.compute_alpha(self.m_bh, self.m_b)
-            if abs(alpha - alpha_new) < tolerance:
+            alpha_new = self.compute(self.m_bh, self.m_b)
+            if abs(alpha - alpha_new) > tolerance:
                 raise ValueError("alpha incompatible with BH & boson masses.")
         elif all([p is not None for p in [m_bh, alpha]]):
             # compute boson mass
@@ -353,14 +357,24 @@ class Alpha(object):
         elif all([p is not None for p in [m_b, alpha]]):
             # compute BH mass
             self.m_bh = HBAR_SI * C_SI * alpha / (G_SI * self.m_b)
-        self.m_b_ev = self.m_b_ev or self.m_b * C_SI**2 / EV_SI 
-        self.m_bh_msun = self.m_bh_msun or self.m_bh / MSUN_SI
-        self.alpha = alpha if alpha is not None else\
-                     self.compute_alpha(self.m_bh, self.m_b)
+        self.alpha = alpha if alpha is not None else self.compute(self.m_bh, self.m_b)
+        
+    @cached_property
+    def m_bh_msun(self):
+        return self.m_bh / MSUN_SI
+
+    @cached_property
+    def m_b_ev(self):
+        return self.m_b * C_SI**2 / EV_SI
+
+    @cached_property
+    def fgw(self):
+        return self.m_b_ev * EV_SI / (HBAR_SI*np.pi)
 
     @staticmethod
     def compute(m_bh, m_b):
         return G_SI * m_bh * m_b / (HBAR_SI * C_SI)
+
 
 class BlackHoleBoson(object):
     def __init__(self, bh, boson):
@@ -729,6 +743,32 @@ class BlackHoleBoson(object):
         if key not in self.clouds:
             self._add_cloud(*key)
         return self.clouds[key]
+
+    # --------------------------------------------------------------------
+    # GWS
+
+    def create_waveform(self, lmns=None): 
+        if lmns is None:
+            lmns = self.clouds.keys()
+        hps = [self.cloud(*lmn).gw.hp for lmn in lmns]
+        hcs = [self.cloud(*lmn).gw.hc for lmn in lmns]
+        def hp(*args, **kwargs):
+            return np.sum([hp(*args, **kwargs) for hp in hps])
+        def hc(*args, **kwargs):
+            return np.sum([hp(*args, **kwargs) for hp in hps])
+        return hp, hc
+            
+    @cached_property
+    def waveform(self):
+        return self.create_waveform()
+
+    def hp(self, *args, **kwargs):
+        r = kwargs.pop('r', 1)
+        return self.waveform[0](*args, **kwargs) / r
+
+    def hc(self, *args, **kwargs):
+        r = kwargs.pop('r', 1)
+        return self.waveform[1](*args, **kwargs) / r
 
 
 class BosonCloud(object):
