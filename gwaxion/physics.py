@@ -73,6 +73,51 @@ def hydrogenic_level(n, alpha):
     return 1 - 0.5 * (alpha/n)**2
 
 
+# TODO: make these static methods of BlackHoleBoson?
+def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=PC_SI*1E3, 
+                     msun=True, ev=True):
+    """ Analytic approximation to the peak BHB scalar strain from Arvanitaki+.
+
+    Arguments
+    ---------
+    alpha: float
+        gravitational fine-structure constant.
+    f: float
+        signal frequency
+    """
+    if f is not None:
+        # `f_gw = 2*f_boson` implies:
+        m_b = HBAR_SI*np.pi*f
+        ev = True
+    a = Alpha(alpha=alpha, m_bh=m_bh, m_b=m_b, msun=msun, ev=ev)
+    if f is None:
+        f = a.m_b_ev / (HBAR_SI*np.pi)
+    h0 = 1E-24 * (a.alpha/0.1)**8 * (PC_SI*1E3/d) * (1E-12/a.m_b_ev)
+    return h0, f
+
+
+def h0_vector_approx(alpha, f=None, m_bh=None, m_b=None, d=PC_SI*1E3, 
+                     msun=True, ev=True):
+    """ Analytic approximation to the peak BHB vector strain from Arvanitaki+.
+
+    Arguments
+    ---------
+    alpha: float
+        gravitational fine-structure constant.
+    f: float
+        signal frequency
+    """
+    if f is not None:
+        # `f_gw = 2*f_boson` implies:
+        m_b = HBAR_SI*np.pi*f
+        ev = True
+    a = Alpha(alpha=alpha, m_bh=m_bh, m_b=m_b, msun=msun, ev=ev)
+    if f is None:
+        f = a.m_b_ev / (HBAR_SI*np.pi)
+    h0 = 5E-21 * (a.alpha/0.1)**6 * (PC_SI*1E3/d) * (1E-12/a.m_b_ev)
+    return h0, f
+
+
 # ###########################################################################
 # CLASSES
 
@@ -141,6 +186,8 @@ class BlackHole(object):
         # AREA
         self.area = 4*np.pi*(self.rp**2 + self.a**2)
         self.area_natural = 8 * np.pi * self.rp_natural
+        # SR-SPECIFIC
+        self._h0r_fits = None
 
     def sigma(self, r, theta):
         """ Kerr auxiliary length Sigma, function of radius and polar angle
@@ -199,11 +246,33 @@ class BlackHole(object):
         rEm = 0.5 * (rs - np.sqrt(rs**2 - 4* a**2 * np.cos(theta)**2))
         return rEp, rEm
 
-    # @property
-    # def omegah(self):
-    #     if self._omegah is None:
-    #         self._omegah = self.omega(self.rp, 0)
-    #     return self._omegah
+    # --------------------------------------------------------------------
+    # UTILITIES
+    def scan_alphas(self, l=1, m=1, nr=0, delta_alpha=0.01, alpha_min=0.001,
+                    alpha_max=0.5):
+        alphas = np.arange(alpha_min, alpha_max, delta_alpha)
+        h0rs, fgws = [], []
+        for alpha in alphas:
+            cloud = BosonCloud.from_parameters(l, m, nr,  m_bh=self.mass_msun,
+                                               chi_bh=self.chi, alpha=alpha)
+            h0rs.append(cloud.gw.h0r)
+            fgws.append(cloud.gw.f)
+        return np.array(h0rs), np.array(fgws), alphas
+
+    def best_alpha(self, *args, **kwargs):
+        h0rs, fgws, alphas = self.scan_alphas(*args, **kwargs)
+        h0r_max = h0rs.max()
+        i_max = np.where(h0rs==h0r_max)[0][0]
+        return h0r_max, fgws[i_max], alphas[i_max]
+
+    def h0r_fit(self, f, **kwargs):
+        l = int(kwargs.pop('l', 1))
+        m = int(kwargs.pop('m', 1))
+        if (l, m) not in self._h0r_fits:
+            from scipy.interpolate import interp1d
+            h0rs, fgws, _ = self.scan_alphas(**kwargs)
+            self._h0r_fits[(l, m)] = interp1d(fgws, h0rs)
+        return self._h0r_fit[(l, m)](f)
 
 
 class Boson(object):
@@ -239,7 +308,7 @@ class Boson(object):
 
 
 class Alpha(object):
-    def __init__(self, m_bh=0, m_b=0, alpha=0, msun=True, ev=True,
+    def __init__(self, m_bh=None, m_b=None, alpha=None, msun=True, ev=True,
                  tolerance=1E-10):
         """ Gravitational fine-structure constant.
         
@@ -261,29 +330,37 @@ class Alpha(object):
             boson mass provided in eV, rather than SI (def True).
 
         """
-        if msun:
+        if msun and m_bh is not None:
             self.m_bh_msun = m_bh
-            m_bh *= MSUN_SI
-        if ev:
+            m_bh = MSUN_SI*m_bh
+        else:
+            self.m_bh_msun = None
+        if ev and m_b is not None:
             self.m_b_ev = m_b
-            m_b *= EV_SI / C_SI**2
+            m_b = m_b * EV_SI / C_SI**2
+        else:
+            self.m_b_ev = None
         self.m_bh = m_bh
         self.m_b = m_b
-        alpha_new = G_SI * self.m_bh * self.m_b / (HBAR_SI * C_SI)
-        if m_bh and m_b and alpha:
+        if all([p is not None for p in [m_bh, m_b, alpha]]):
             # check consistency
+            alpha_new = self.compute_alpha(self.m_bh, self.m_b)
             if abs(alpha - alpha_new) < tolerance:
                 raise ValueError("alpha incompatible with BH & boson masses.")
-        elif m_bh and alpha:
+        elif all([p is not None for p in [m_bh, alpha]]):
             # compute boson mass
             self.m_b = HBAR_SI * C_SI * alpha / (G_SI * self.m_bh)
-            self.m_b_ev = self.m_b * C_SI**2 / EV_SI 
-        elif m_b and alpha:
+        elif all([p is not None for p in [m_b, alpha]]):
             # compute BH mass
             self.m_bh = HBAR_SI * C_SI * alpha / (G_SI * self.m_b)
-            self.m_bh_msun = self.m_bh / MSUN_SI
-        self.alpha = alpha or alpha_new 
+        self.m_b_ev = self.m_b_ev or self.m_b * C_SI**2 / EV_SI 
+        self.m_bh_msun = self.m_bh_msun or self.m_bh / MSUN_SI
+        self.alpha = alpha if alpha is not None else\
+                     self.compute_alpha(self.m_bh, self.m_b)
 
+    @staticmethod
+    def compute(m_bh, m_b):
+        return G_SI * m_bh * m_b / (HBAR_SI * C_SI)
 
 class BlackHoleBoson(object):
     def __init__(self, bh, boson):
@@ -800,7 +877,8 @@ class BosonCloud(object):
             h0r = (C_SI**4/G_SI) * 2.*self.zabs*m_c / (wgw*m_bh)**2
             # SWSH spin parameter: dimensionless (spin x omega_gw)
             c = self.bh_final.chi * 2*np.pi*self.fgw * self.bh_final.tg
-            self._gw = StrainMode(c, 2*self.l, 2*self.m, self.fgw, h0r=h0r)
+            self._gw = GravitationalWaveMode(self.fgw, c=c, l=2*self.l,
+                                             m=2*self.m, h0r=h0r)
         return self._gw
 
 
@@ -839,8 +917,25 @@ class Zabs(object):
         return Zabs._FITS[2, 2](a)
 
 
-class StrainMode(object):
-    def __init__(self, c, l, m, f, h0r=1, r0=1):
+class GravitationalWaveMode(object):
+    def __init__(self, f, l=2, m=2, h0r=1, r0=1, c=0):
+        """ A single (l, m) gravitational wave.
+
+        Arguments
+        ---------
+        f: float
+            signal frequency
+        l: int
+            azimuthal number (def. 2)
+        m: int
+            magnetic number (def. 2)
+        c: float
+            dimensionless spheroidal-harmonics parameter `c=a*omega` (def. 0).
+        h0r: float
+            intrinsic amplitude at fiducial distance, `h0r = h0(r0)` (def. 1).
+        r0: float
+            reference distance `r0` in meters (def. 1).
+        """
         self.c = c
         self.l = l
         self.m = m
@@ -888,6 +983,8 @@ class StrainMode(object):
             orbital phase (azimuthal angle)
         t: float, array
             times.
+        r: float
+            distance from source in meters (def. 1).
 
         Returns
         -------
@@ -908,6 +1005,8 @@ class StrainMode(object):
             orbital phase (azimuthal angle)
         t: float, array
             times.
+        r: float
+            distance from source in meters (def. 1).
 
         Returns
         -------
