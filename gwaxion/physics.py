@@ -394,6 +394,7 @@ class BlackHoleBoson(object):
         # Fine-structure constant `G M m / (hbar c) = rg / lambda_bar_c`
         self.alpha = self.bh.rg / self.boson.reduced_compton_wavelength
         self.clouds = {}
+        self._has_full_waveform = False
 
     # --------------------------------------------------------------------
     # CLASS METHODS
@@ -722,7 +723,7 @@ class BlackHoleBoson(object):
             self._add_cloud(*key)
         return self.clouds[key]
 
-    def cloud(self, l, m, nr):
+    def cloud(self, l, m, nr, update_waveform=True):
         """ Retrieve (or create) cloud of given level.
 
         Arguments
@@ -742,16 +743,49 @@ class BlackHoleBoson(object):
         key = (int(l), int(m), int(nr))
         if key not in self.clouds:
             self._add_cloud(*key)
+            if self._has_full_waveform and update_waveform:
+                self.waveform = self.create_waveform()
         return self.clouds[key]
 
     # --------------------------------------------------------------------
     # GWS
 
-    def create_waveform(self, lmns=None): 
+    def create_waveform(self, lmns=None, lgw_max=None): 
+        """ Produce waveform (hp, hc) by adding contributions from clouds with 
+        quantum numners `lmns`, up to GW azimuthal number `lgw_max`.
+
+        If no `lmns` are specified, will use all clouds present to produce waform.
+        If no `lgw_max` is specified, will only use the minimum (`l_gw=2*l_cloud`)
+        for each cloud.
+
+        Arguments
+        ---------
+        lmns: list
+            optional list of tuples with cloud quantum numbers, 
+            e.g. [(1,1,0), (2,1,2), ...] (def. all precomputed clouds).
+        lgw_max: int
+            maximum GW azimuthal number (2*l_cloud <= l_gw <= lgw_max).
+
+        Returns
+        -------
+        hp: function
+            plus polarization (function of theta, phi and time)
+        hc: function
+            cross polarization (function of theta, phi and time)
+        """
         if lmns is None:
             lmns = self.clouds.keys()
-        hps = [self.cloud(*lmn).gw.hp for lmn in lmns]
-        hcs = [self.cloud(*lmn).gw.hc for lmn in lmns]
+        hps, hcs = [], []
+        # loop over cloud lmn's
+        for lmn in lmns:
+            c = self.cloud(*lmn)
+            # loop over GW l's if specified, otherwise just set `l_gw=2*l_c`
+            lgw_max_loc = lgw_max or 2*c.l
+            for lgw in np.arange(2*c.l, lgw_max_loc+1):
+                hps.append(c.gw(lgw).hp)
+                hcs.append(c.gw(lgw).hc)
+        if len(hps) == 0:
+            raise ValueError("no matching clouds to produce waveform!")
         def hp(*args, **kwargs):
             return np.sum([hp(*args, **kwargs) for hp in hps])
         def hc(*args, **kwargs):
@@ -759,16 +793,18 @@ class BlackHoleBoson(object):
         return hp, hc
             
     @cached_property
-    def waveform(self):
-        return self.create_waveform()
+    def full_waveform(self):
+        wf = self.create_waveform()
+        self._has_full_waveform = True
+        return wf
 
     def hp(self, *args, **kwargs):
         r = kwargs.pop('r', 1)
-        return self.waveform[0](*args, **kwargs) / r
+        return self.full_waveform[0](*args, **kwargs) / r
 
     def hc(self, *args, **kwargs):
         r = kwargs.pop('r', 1)
-        return self.waveform[1](*args, **kwargs) / r
+        return self.full_waveform[1](*args, **kwargs) / r
 
 
 class BosonCloud(object):
@@ -810,13 +846,13 @@ class BosonCloud(object):
         self._mass = None
         self._mass_msun = None
         # set gravitational-wave properties
-        self._gw = None
+        self._zabs = {}
+        self._gws = {}
         self._h0r = None
         self._fgw = None
         # others
         self._bh_final = None
         self._bhb_final = None
-        self._zabs = None
 
     # --------------------------------------------------------------------
     # CLASS METHODS
@@ -900,26 +936,29 @@ class BosonCloud(object):
             self._fgw = 2.*self.bhb_initial.level_frequency(self.n)
         return self._fgw
 
-    @property
-    def zabs(self):
-        if self._zabs is None:
+    def zabs(self, lgw=None):
+        lgw = lgw or 2*self.l
+        # the GW is allowed to have any l_gw >= 2*l_cloud, but only m_gw = 2*m_cloud
+        if lgw not in self._zabs:
             # TODO: final or initial alpha?
-            self._zabs = Zabs(2*self.l, 2*self.m)(self.bhb_final.alpha)
-        return self._zabs
+            self._zabs[lgw] = Zabs(lgw, 2*self.m)(self.bhb_final.alpha)
+        return self._zabs[lgw]
 
-    @property
-    def gw(self):
-        if self._gw is None:
+    def gw(self, lgw=None):
+        lgw = lgw or 2*self.l
+        if lgw not in self._gws:
+            if lgw < 2*self.l:
+                raise ValueError("Must have `l_gw >= 2*l_cloud = %i`." % 2*self.l)
             # intrinsic amplitude, 1m away from the source (`h0r = h0*r`).
             wgw = 2*np.pi*self.fgw
             m_bh = self.bh_final.mass  # TODO: initial mass?
             m_c = self.mass
-            h0r = (C_SI**4/G_SI) * 2.*self.zabs*m_c / (wgw*m_bh)**2
+            h0r = (C_SI**4/G_SI) * 2.*self.zabs(lgw=lgw)*m_c / (wgw*m_bh)**2
             # SWSH spin parameter: dimensionless (spin x omega_gw)
             c = self.bh_final.chi * 2*np.pi*self.fgw * self.bh_final.tg
-            self._gw = GravitationalWaveMode(self.fgw, c=c, l=2*self.l,
-                                             m=2*self.m, h0r=h0r)
-        return self._gw
+            self._gws[lgw] = GravitationalWaveMode(self.fgw, c=c, l=lgw,
+                                                   m=2*self.m, h0r=h0r)
+        return self._gws[lgw]
 
 
 class Zabs(object):
