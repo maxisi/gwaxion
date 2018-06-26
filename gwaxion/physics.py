@@ -394,7 +394,7 @@ class BlackHoleBoson(object):
         # Fine-structure constant `G M m / (hbar c) = rg / lambda_bar_c`
         self.alpha = self.bh.rg / self.boson.reduced_compton_wavelength
         self.clouds = {}
-        self._has_full_waveform = False
+        self._has_waveform = False
 
     # --------------------------------------------------------------------
     # CLASS METHODS
@@ -743,7 +743,7 @@ class BlackHoleBoson(object):
         key = (int(l), int(m), int(nr))
         if key not in self.clouds:
             self._add_cloud(*key)
-            if self._has_full_waveform and update_waveform:
+            if self._has_waveform and update_waveform:
                 self.waveform = self.create_waveform()
         return self.clouds[key]
 
@@ -793,18 +793,18 @@ class BlackHoleBoson(object):
         return hp, hc
             
     @cached_property
-    def full_waveform(self):
+    def waveform(self):
         wf = self.create_waveform()
-        self._has_full_waveform = True
+        self._has_waveform = True
         return wf
 
     def hp(self, *args, **kwargs):
         r = kwargs.pop('r', 1)
-        return self.full_waveform[0](*args, **kwargs) / r
+        return self.waveform[0](*args, **kwargs) / r
 
     def hc(self, *args, **kwargs):
         r = kwargs.pop('r', 1)
-        return self.full_waveform[1](*args, **kwargs) / r
+        return self.waveform[1](*args, **kwargs) / r
 
 
 class BosonCloud(object):
