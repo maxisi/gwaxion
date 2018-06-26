@@ -251,14 +251,14 @@ class BlackHole(object):
     # UTILITIES
 
     def scan_alphas(self, l=1, m=1, nr=0, delta_alpha=0.001, alpha_min=0.001,
-                    alpha_max=0.5):
+                    alpha_max=0.5, lgw=None):
         alphas = np.arange(alpha_min, alpha_max, delta_alpha)
         h0rs, fgws = [], []
         for alpha in alphas:
             cloud = BosonCloud.from_parameters(l, m, nr,  m_bh=self.mass_msun,
                                                chi_bh=self.chi, alpha=alpha)
-            h0rs.append(cloud.gw.h0r)
-            fgws.append(cloud.gw.f)
+            h0rs.append(cloud.gw(lgw).h0r)
+            fgws.append(cloud.gw(lgw).f)
         return np.array(h0rs), np.array(fgws), alphas
 
     def best_alpha(self, *args, **kwargs):
