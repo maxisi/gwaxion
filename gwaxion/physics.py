@@ -273,11 +273,12 @@ class BlackHole(object):
     def h0r_fit(self, f, **kwargs):
         l = int(kwargs.pop('l', 1))
         m = int(kwargs.pop('m', 1))
-        if (l, m) not in self._h0r_fits:
+        lgw = int(kwargs.pop('lgw', 2*l))
+        if (l, m, lgw) not in self._h0r_fits:
             from scipy.interpolate import interp1d
-            h0rs, fgws, _ = self.scan_alphas(**kwargs)
-            self._h0r_fits[(l, m)] = interp1d(fgws, h0rs)
-        return self._h0r_fits[(l, m)](f)
+            h0rs, fgws, _ = self.scan_alphas(l=l, m=m, lgw=lgw, **kwargs)
+            self._h0r_fits[(l, m, lgw)] = interp1d(fgws, h0rs)
+        return self._h0r_fits[(l, m, lgw)](f)
 
     def fgw(self, alpha=None, l=1, nr=0, m_b=None, ev=True):
         a = Alpha(m_bh=self.mass_msun, alpha=alpha, m_b=m_b, ev=ev)
