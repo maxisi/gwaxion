@@ -74,6 +74,28 @@ def hydrogenic_level(n, alpha):
     return 1 - 0.5 * (alpha/n)**2
 
 
+def h0_scalar_brito(m_i, fgw, chi_i=0.9, d=1, msun=True):
+    # frequencies
+    w_gw = 2*np.pi*fgw
+    w_b = 0.5*w_gw
+    # initial BH properties
+    m_i = m_i*MSUN_SI if msun else m_i
+    rg_i = G_SI * m_i / C_SI**2
+    alpha = rg_i * w_b / C_SI  # = rg / reduced_lambda_c
+    # final BH properties
+    chi_f = 4*C_SI*m_i*rg_i*w_b / ((C_SI*m_i)**2 + 4*(rg_i*w_b)**2)
+    m_f = m_i*(1. - alpha*(chi_i - chi_f))
+    # cloud properties
+    zabs = Zabs.fit22(alpha)
+    m_c = m_i - m_f
+    # wave amplitude
+    h0r = np.array((C_SI**4/G_SI) * 2.*zabs*m_c / (w_gw*m_f)**2)
+    h0r[np.array(alpha)>0.5] = 0
+    h0r[np.array(alpha)<=0] = 0
+    h0r[h0r<0] = 0
+    return h0r / d
+
+
 # TODO: make these static methods of BlackHoleBoson?
 def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=1,
                      msun=True, ev=True):
@@ -267,9 +289,10 @@ class BlackHole(object):
         i_max = np.where(h0rs==h0r_max)[0][0]
         return h0r_max, fgws[i_max], alphas[i_max]
 
-    # NOTE: currently, this is essentially just refitting Zabs, which is a bit dumb... 
-    # though the total mass of the cloud is also used, which might be computed 
-    # numerically in the future to make the code more precise---so leave this.
+    # NOTE: currently, this is essentially just refitting Zabs, which is a bit
+    # dumb... however, the total mass of the cloud is also used, which might
+    # be computed numerically in the future to make the code more precise---so 
+    # leave this as is.
     def h0r_fit(self, f, **kwargs):
         l = int(kwargs.pop('l', 1))
         m = int(kwargs.pop('m', 1))
@@ -949,7 +972,8 @@ class BosonCloud(object):
         lgw = lgw or 2*self.l
         if lgw not in self._gws:
             if lgw < 2*self.l:
-                raise ValueError("Must have `l_gw >= 2*l_cloud = %i`." % 2*self.l)
+                raise ValueError("Must have `l_gw >= 2*l_cloud = %i`."
+                                 % 2*self.l)
             # intrinsic amplitude, 1m away from the source (`h0r = h0*r`).
             wgw = 2*np.pi*self.fgw
             m_bh = self.bh_final.mass  # TODO: initial mass?
