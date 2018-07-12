@@ -74,44 +74,53 @@ def hydrogenic_level(n, alpha):
     return 1 - 0.5 * (alpha/n)**2
 
 
-def h0_scalar_brito_alpha(m_i, alpha, chi_i=0.9, d=1, msun=True):
-    """GW strain for scalar mode l=m=1.
+# TODO: make these static methods of BlackHoleBoson?
+def h0_scalar_brito(m_i, alpha, chi_i=0.9, d=1, l=1, m=1, lgw=None, mgw=None,
+                    msun=True):
+    """GW strain for scalar boson from Brito et al. [PhysRevD.96.064050]
+
+    Default GW emission at (lgw=2*l, mgw=2*m).
+
+    Arguments
+    ---------
+    m_i: float, array
+        initial black-hole mass (in solar masses if `msun`, else kg).
+    alpha: float, array
+        fine-structure constant.
+    chi_i: float, array
+        initial black-hole spin parameter (dimensionless).
+    d: float, array
+        distance to source in meters (def. 1).
+    msun: bool
+        expect black-hole mass in solar masses.
+
+    Returns
+    -------
+    h0: float, array
+        gravitational-wave amplitude (strain).
+    fgw:
+        gravitational-wave frequency (Hz).
     """
-    mwr = alpha*(1. - alpha**2/8.)
+    # dimensionless boson frequency for (l=1, m=1, nr=0)
+    # same as `alpha*hydrogenic_level(1+1, alpha)` (see above)
+    mwr = alpha*hydrogenic_level(l + 1, alpha)
+    # dimensionless gravitational wave frequency
     mwgw = 2*mwr
+    # black-hole final dimensionless spin, from Eq. (25)
     chi_f = 4*mwr/(1 + 4*mwr**2)
+    # black-hole final mass, from Eq. (26)
     m_i = m_i*MSUN_SI if msun else m_i
     m_f = m_i*(1 - mwr*(chi_i - chi_f))
     m_c = m_i - m_f
-    fgw = C_SI**3 * mwgw / (2*np.pi*G*m_f)
-    zabs = Zabs.fit22(alpha)
-    h0 = G_SI*2*zabs*mc / (C_SI**2 * mgw**2)
-    return h0r / d
+    # dimensionfull GW frequency (rescaling `mwgw` by final BH mass)
+    fgw = C_SI**3 * mwgw / (2*np.pi*G_SI*m_f)
+    # numerical fit to GW emitted power for (lgw=2, mgw=2)
+    zabs = Zabs.fast_fit(alpha, lgw=lgw or 2*l, mgw=mgw or 2*m)
+    # Eq. (39) in Brito et al. with units restored
+    h0 = G_SI*2*zabs*m_c / (d * C_SI**2 * mwgw**2)
+    return h0, fgw
 
 
-def h0_scalar_brito(m_i, fgw, chi_i=0.9, d=1, msun=True):
-    # frequencies
-    w_gw = 2*np.pi*fgw
-    w_b = 0.5*w_gw
-    # initial BH properties
-    m_i = m_i*MSUN_SI if msun else m_i
-    rg_i = G_SI * m_i / C_SI**2
-    alpha = rg_i * w_b / C_SI  # = rg / reduced_lambda_c
-    # final BH properties
-    chi_f = 4*C_SI*m_i*rg_i*w_b / ((C_SI*m_i)**2 + 4*(rg_i*w_b)**2)
-    m_f = m_i*(1. - alpha*(chi_i - chi_f))
-    # cloud properties
-    zabs = Zabs.fit22(alpha)
-    m_c = m_i - m_f
-    # wave amplitude
-    h0r = np.array((C_SI**4/G_SI) * 2.*zabs*m_c / (w_gw*m_f)**2)
-    h0r[np.array(alpha)>0.5] = 0
-    h0r[np.array(alpha)<=0] = 0
-    h0r[h0r<0] = 0
-    return h0r / d
-
-
-# TODO: make these static methods of BlackHoleBoson?
 def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=1,
                      msun=True, ev=True):
     """ Analytic approximation to the peak BHB scalar strain from Arvanitaki+.
@@ -1032,8 +1041,8 @@ class Zabs(object):
         return self.alpha_fit(alpha)
 
     @staticmethod
-    def fit22(a):
-        return Zabs._FITS[2, 2](a)
+    def fast_fit(a, lgw=2, mgw=2):
+        return Zabs._FITS[lgw, mgw](a)
 
 
 class GravitationalWaveMode(object):
