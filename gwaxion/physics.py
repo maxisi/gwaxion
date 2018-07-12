@@ -74,6 +74,21 @@ def hydrogenic_level(n, alpha):
     return 1 - 0.5 * (alpha/n)**2
 
 
+def h0_scalar_brito_alpha(m_i, alpha, chi_i=0.9, d=1, msun=True):
+    """GW strain for scalar mode l=m=1.
+    """
+    mwr = alpha*(1. - alpha**2/8.)
+    mwgw = 2*mwr
+    chi_f = 4*mwr/(1 + 4*mwr**2)
+    m_i = m_i*MSUN_SI if msun else m_i
+    m_f = m_i*(1 - mwr*(chi_i - chi_f))
+    m_c = m_i - m_f
+    fgw = C_SI**3 * mwgw / (2*np.pi*G*m_f)
+    zabs = Zabs.fit22(alpha)
+    h0 = G_SI*2*zabs*mc / (C_SI**2 * mgw**2)
+    return h0r / d
+
+
 def h0_scalar_brito(m_i, fgw, chi_i=0.9, d=1, msun=True):
     # frequencies
     w_gw = 2*np.pi*fgw
