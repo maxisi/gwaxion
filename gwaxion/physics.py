@@ -673,7 +673,7 @@ class BlackHoleBoson(object):
         if method == 'detweiler':
             sr = self._sr_factor(m)
             clmn = self._clmn(l, m, nr)
-            omega_im = w0 * a*(4*l +4) * sr * clmn
+            omega_im = w0 * a**(4*l +4) * sr * clmn
         elif method == 'zouros':
             number = 2. - np.sqrt(2)
             omega_im = 1E-7 * (C_SI/self.bh.rg) * np.exp(-2*np.pi*a*number)
