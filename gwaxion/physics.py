@@ -21,7 +21,7 @@ from .utilities import *
 
 try:
     # if LAL is available, import constants for better accuracy (?)
-    from lal import C_SI, G_SI, HBAR_SI, PC_SI, MSUN_SI
+    from lal import C_SI, G_SI, HBAR_SI, PC_SI, MSUN_SI, DAYSID_SI, YRSID_SI 
 except ImportError:
 		G_SI = 6.674e-11  # m^3 kg^-1 ss^-2
 		C_SI = 299792458  # m ss^-1
@@ -164,6 +164,19 @@ def h0_vector_approx(alpha, f=None, m_bh=None, m_b=None, d=PC_SI*1E3,
     h0 = 5E-21 * (a.alpha/0.1)**6 * (PC_SI*1E3/d) * (1E-12/a.m_b_ev)
     return h0, f
 
+
+def tinst_approx(m, alpha, chi, msun=True):
+    if msun:
+        m *= MSUN_SI
+    t =  25. * DAYSID_SI * (10*lal.MSUN_SI/m) * (0.1/alpha)**9 / chi
+    return t/YRSID_SI
+
+def tgw_approx(m, alpha, chi, msun=True):
+    if msun:
+        m *= MSUN_SI
+    t = (6.5E4) * YRSID_SI * (10*lal.MSUN_SI/m) * (0.1/alpha)**15 / chi
+    return t/YRSID_SI
+    
 
 # ###########################################################################
 # CLASSES
