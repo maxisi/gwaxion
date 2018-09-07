@@ -912,6 +912,7 @@ class BosonCloud(object):
         self._h0r = None
         self._fgw = None
         # others
+        self._chi_final = None
         self._bh_final = None
         self._bhb_final = None
 
@@ -939,9 +940,17 @@ class BosonCloud(object):
         """ Superradiant instability timescale: `1/Im(omega)`.
         """
         if self._growth_time is None:
-            self._final_bh = 1./self.bhb_initial.level_omega_im(self.l, self.m, 
+            self._growth_time = 1./self.bhb_initial.level_omega_im(self.l, self.m, 
                                                                 self.nr)
         return self._growth_time
+
+    @cached_property
+    def chi_final(self):
+        if self._chi_final is None:
+            rg = self.bh_initial.rg
+            w = self.bhb_initial.level_omega_re(self.n)
+            self._chi_final = 4*C_SI*self.m*rg*w / ((C_SI*self.m)**2 + 4*(rg*w)**2)
+        return self._chi_final
 
     @property
     def bh_final(self):
@@ -950,9 +959,7 @@ class BosonCloud(object):
         if self._bh_final is None:
             # final BH angular momentum from Eq. (25) in Brito et al.
             # TODO: this should be the *final* BH params... solve numerically?
-            w = self.bhb_initial.level_omega_re(self.n)
-            rg = self.bh_initial.rg
-            chi_f = 4*C_SI*self.m*rg*w / ((C_SI*self.m)**2 + 4*(rg*w)**2)
+            chi_f = self.chi_final
             # final BH mass from Eq. (26) in Brito et al.
             w_nat = self.bhb_initial.level_omega_natural(self.n)
             m_f = self.bh_initial.mass*(1 - w_nat*(self.bh_initial.chi - chi_f))
