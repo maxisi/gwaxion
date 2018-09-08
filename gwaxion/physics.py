@@ -177,6 +177,10 @@ def tgw_approx(m, alpha, chi, msun=True):
     t = (6.5E4) * YRSID_SI * (10*lal.MSUN_SI/m) * (0.1/alpha)**15 / chi
     return t/YRSID_SI
     
+# TODO make these Cloud methods?
+def get_sr_cond(x, jx, T0, epsilon, m=1):
+    return jx - x**2 * (m*x - jx) * 4*T0**2/(m*epsilon)**2
+
 
 # ###########################################################################
 # CLASSES
@@ -310,12 +314,13 @@ class BlackHole(object):
     # UTILITIES
 
     def scan_alphas(self, l=1, m=1, nr=0, delta_alpha=0.001, alpha_min=0.001,
-                    alpha_max=0.5, lgw=None):
+                    alpha_max=0.5, lgw=None, evolve=True):
         alphas = np.arange(alpha_min, alpha_max, delta_alpha)
         h0rs, fgws = [], []
         for alpha in alphas:
             cloud = BosonCloud.from_parameters(l, m, nr,  m_bh=self.mass_msun,
-                                               chi_bh=self.chi, alpha=alpha)
+                                               chi_bh=self.chi, alpha=alpha,
+                                               evolve=evolve)
             h0rs.append(cloud.gw(lgw).h0r)
             fgws.append(cloud.gw(lgw).f)
         return np.array(h0rs), np.array(fgws), alphas
@@ -869,7 +874,7 @@ class BlackHoleBoson(object):
 
 
 class BosonCloud(object):
-    def __init__(self, bhb, l, m, nr):
+    def __init__(self, bhb, l, m, nr, evolve=True):
         """ Boson cloud around a black hole, corresponding to single level.
 
         Arguments
@@ -882,6 +887,8 @@ class BosonCloud(object):
             magnetic quantum number.
         nr: int
             radial quantum number.
+        evolve: bool
+            whether to compute final BH mass and spin numerically or approximate.
         """
         # check `bhb` is of the right type
         self.bhb_initial = bhb
@@ -909,20 +916,95 @@ class BosonCloud(object):
         # set gravitational-wave properties
         self._zabs = {}
         self._gws = {}
-        self._h0r = None
         self._fgw = None
         # others
-        self._chi_final = None
         self._bh_final = None
         self._bhb_final = None
+        # solve DEs for cloud evolution, or approximate final values
+        self.evolve = evolve  
+        self._evolve_params = {
+            'y_0': 2,
+        }
 
     # --------------------------------------------------------------------
     # CLASS METHODS
 
     @classmethod
-    def from_parameters(cls, l, m, nr, **kwargs):
+    def from_parameters(cls, l, m, nr, evolve=True, **kwargs):
         bhb = BlackHoleBoson.from_parameters(**kwargs)
-        return cls(bhb, l, m, nr)
+        return cls(bhb, l, m, nr, evolve=evolve)
+
+    def _evolve_instability(self, y_0=1E-8, dtau=None, max_steps=1E6, tolerance=1e-3):
+        """ Solve cloud evolution equations, ignoring cloud angular momentum and GW power.
+    
+        See documentation for `evolve_bhb` for more information.
+    
+        Arguments
+        ---------
+    
+        Returns
+        -------
+    
+        """
+        bhb_0 = self.bhb_initial
+        l = self.l
+        m = self.m
+        nr = self.nr
+        # initial mass
+        M0 = bhb_0.bh.mass
+        T0 = G_SI*M0/C_SI**3
+        # time step
+        epsilon = 1./bhb_0.boson.omega
+        dtau = dtau or self.growth_time/10.
+        # other dimensionfull constants
+        alpha = M0
+        beta = epsilon*M0*C_SI**2
+        gamma = M0*C_SI**2 / epsilon
+        # initial state
+        x_0 = 1
+        jx_0 = bhb_0.bh.angular_momentum / beta  # same as alpha_0/2
+        n = l + nr + 1
+        wR_0 = bhb_0.level_omega_re(n) * epsilon
+        wI_0 = bhb_0.level_omega_im(l, m, nr) * epsilon
+        # initialize arrays
+        xs = [x_0]
+        ys = [y_0]
+        jxs = [jx_0]
+        inv_wRs = [1./wR_0]
+        wIs = [wI_0]
+        sr_conds = [get_sr_cond(x_0, jx_0, T0, epsilon, m=m)]
+        if not bhb_0.is_superradiant(m):
+            print "WARNING: initial BHB not superradiant for m = %i" % m
+            bhb_new = bhb_0
+        else:
+            # evolve
+            for i in range(int(max_steps)):
+                # update x & j
+                dx = - 2*wIs[i]*ys[i]*dtau
+                x_new = xs[i] + dx
+                y_new = ys[i] - dx 
+                # update jx & jy
+                jx_new = jxs[i] - 2*m*wIs[i]*inv_wRs[i]*ys[i]*dtau
+                # update w's
+                # TODO: optimize this to not rely on BH and BHB objects
+                bh = BlackHole(x_new*alpha, j=jx_new*beta)
+                bhb_new = BlackHoleBoson(bh, bhb_0.boson)
+                inv_wR_new = 1./ (bhb_new.level_omega_re(n) * epsilon)
+                wI_new = bhb_new.level_omega_im(l, m, nr) * epsilon
+                # append
+                xs.append(x_new)
+                ys.append(y_new)
+                jxs.append(jx_new)
+                inv_wRs.append(inv_wR_new)
+                wIs.append(wI_new)
+                # compute SR condition
+                sr_cond = get_sr_cond(x_new, jx_new, T0, epsilon, m=m)
+                sr_conds.append(sr_cond)
+                if (sr_conds[i] - sr_cond < tolerance*sr_cond) and\
+                   (sr_cond < tolerance*sr_conds[0]):
+                    break
+        chains = tuple([np.array(l) for l in [xs, jxs, ys, inv_wRs, wIs, sr_conds]])
+        return bhb_new, chains
 
     # --------------------------------------------------------------------
     # PROPERTIES
@@ -944,26 +1026,23 @@ class BosonCloud(object):
                                                                 self.nr)
         return self._growth_time
 
-    @cached_property
-    def chi_final(self):
-        if self._chi_final is None:
-            rg = self.bh_initial.rg
-            w = self.bhb_initial.level_omega_re(self.n)
-            self._chi_final = 4*C_SI*self.m*rg*w / ((C_SI*self.m)**2 + 4*(rg*w)**2)
-        return self._chi_final
-
     @property
     def bh_final(self):
         """ Black-hole left at the end of superradiant cloud growth.
         """
         if self._bh_final is None:
-            # final BH angular momentum from Eq. (25) in Brito et al.
-            # TODO: this should be the *final* BH params... solve numerically?
-            chi_f = self.chi_final
-            # final BH mass from Eq. (26) in Brito et al.
-            w_nat = self.bhb_initial.level_omega_natural(self.n)
-            m_f = self.bh_initial.mass*(1 - w_nat*(self.bh_initial.chi - chi_f))
-            self._bh_final = BlackHole(m_f, chi_f) 
+            if self.evolve:
+                self._bh_final = self.bhb_final.bh
+            else:
+                # final BH angular momentum from Eq. (25) in Brito et al.
+                # approximating the final alpha with the initial alpha
+                rg = self.bh_initial.rg
+                w = self.bhb_initial.level_omega_re(self.n)
+                chi_f = 4*C_SI*self.m*rg*w / ((C_SI*self.m)**2 + 4*(rg*w)**2)
+                # final BH mass from Eq. (26) in Brito et al.
+                w_nat = self.bhb_initial.level_omega_natural(self.n)
+                m_f = self.bh_initial.mass*(1 - w_nat*(self.bh_initial.chi - chi_f))
+                self._bh_final = BlackHole(m_f, chi_f) 
         return self._bh_final
 
     @property
@@ -971,8 +1050,13 @@ class BosonCloud(object):
         """ Black-hole-boson left at the end of superradiant cloud growth.
         """
         if self._bhb_final is None:
-            self._bhb_final = BlackHoleBoson(self.bh_final,
-                                             self.bhb_initial.boson)
+            if self.evolve:
+                self._bhb_final, _ = self._evolve_instability(**self._evolve_params)
+                # note that the value of y_0 does not affect final state,
+                # but a higher value means fewer steps
+            else:
+                self._bhb_final = BlackHoleBoson(self.bh_final,
+                                                 self.bhb_initial.boson)
         return self._bhb_final
 
     @property
@@ -1000,15 +1084,13 @@ class BosonCloud(object):
         """ Gravitational-wave frequency (Hz).
         """
         if self._fgw is None:
-            # TODO: ask Richard, should rescale by *final* BH mass?
-            self._fgw = 2.*self.bhb_initial.level_frequency(self.n)
+            self._fgw = 2.*self.bhb_final.level_frequency(self.n)
         return self._fgw
 
     def zabs(self, lgw=None):
         lgw = lgw or 2*self.l
         # the GW is allowed to have any l_gw >= 2*l_cloud, but only m_gw = 2*m_cloud
         if lgw not in self._zabs:
-            # TODO: final or initial alpha?
             self._zabs[lgw] = Zabs(lgw, 2*self.m)(self.bhb_final.alpha)
         return self._zabs[lgw]
 
@@ -1020,7 +1102,7 @@ class BosonCloud(object):
                                  % 2*self.l)
             # intrinsic amplitude, 1m away from the source (`h0r = h0*r`).
             wgw = 2*np.pi*self.fgw
-            m_bh = self.bh_final.mass  # TODO: initial mass?
+            m_bh = self.bh_final.mass
             m_c = self.mass
             h0r = (C_SI**4/G_SI) * 2.*self.zabs(lgw=lgw)*m_c / (wgw*m_bh)**2
             # SWSH spin parameter: dimensionless (spin x omega_gw)
