@@ -2,34 +2,31 @@
 
 import os, subprocess
 import numpy as np
-import matplotlib
-from matplotlib import pyplot as plt
-from matplotlib import ticker, cm
 import pandas as pd
-from scipy.interpolate import interp1d, interp2d
-from scipy.optimize import leastsq, root, brentq, fsolve
+# from scipy.interpolate import interp1d, interp2d
+# from scipy.optimize import leastsq, root, brentq, fsolve
 import tqdm
 
 import multiprocessing
 from functools import partial
 
-import pycbc.waveform
-import cosmolopy.distance as cd
+#import pycbc.waveform
+#import cosmolopy.distance as cd
 
 from gwaxion import physics
 
-mplparams = {
-    'text.usetex': True,  # use LaTeX for all text
-    'axes.linewidth': 1,  # set axes linewidths to 0.5
-    'axes.grid': False,  # add a grid
-    'axes.labelweight': 'normal',
-    'font.family': 'serif',
-    'font.size': 24,
-    'font.serif': 'Computer Modern Roman'
-}
-matplotlib.rcParams.update(mplparams)
-
-cosmo = {'omega_M_0':0.308, 'omega_lambda_0':0.692, 'omega_k_0':0.0, 'h':0.678}
+# mplparams = {
+#     'text.usetex': True,  # use LaTeX for all text
+#     'axes.linewidth': 1,  # set axes linewidths to 0.5
+#     'axes.grid': False,  # add a grid
+#     'axes.labelweight': 'normal',
+#     'font.family': 'serif',
+#     'font.size': 24,
+#     'font.serif': 'Computer Modern Roman'
+# }
+# matplotlib.rcParams.update(mplparams)
+# 
+# cosmo = {'omega_M_0':0.308, 'omega_lambda_0':0.692, 'omega_k_0':0.0, 'h':0.678}
 
 
 # # Horizon
@@ -135,8 +132,8 @@ class MyPool(multiprocessing.pool.Pool):
 
 # In[16]:
 
-NCPUS_0 = 8
-NCPUS_1 = 8
+NCPUS_0 = 4 
+NCPUS_1 = 4
 
 def get_gws(a, lgw=2, l=1, m=1, nr=0, **kwargs): 
     cloud = physics.BosonCloud.from_parameters(l, m, nr, alpha=a, **kwargs) 
@@ -170,8 +167,8 @@ def get_row(mbh_chi, distance=1):
 dfpath = 'peak_DE.hdf5'
 rewrite = True
 
-n_mass = 10
-n_chi = 10
+n_mass = 100
+n_chi = 100
 
 mbhs_array = np.logspace(-1, 4, n_mass)
 chis_array = np.linspace(1E-4, 1, n_chi, endpoint=False)
@@ -184,9 +181,10 @@ for mbh in mbhs_array:
     for chi in chis_array:
         mbh_chis.append([mbh, chi])
 
-# run over Ms and chis
+print "Running over Ms and chis..."
 pool = MyPool(NCPUS_0)
 rows = pool.map(partial(get_row, distance=distance), mbh_chis)
 df_max = pd.DataFrame(rows)
 df_max.to_hdf(dfpath, 'table', mode='w')
+print "File saved: %r" % dfpath
 
