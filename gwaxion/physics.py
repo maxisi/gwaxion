@@ -314,13 +314,20 @@ class BlackHole(object):
     # UTILITIES
 
     def scan_alphas(self, l=1, m=1, nr=0, delta_alpha=0.001, alpha_min=0.001,
-                    alpha_max=0.5, lgw=None, evolve=True):
+                    alpha_max=0.5, lgw=None, verbose=False, **kwargs):
         alphas = np.arange(alpha_min, alpha_max, delta_alpha)
         h0rs, fgws = [], []
-        for alpha in alphas:
+        iterable = alphas
+        if verbose:
+            try:
+                from tqdm import tqdm
+                iterable = tqdm(alphas)
+            except ImportError:
+                print "WARNING: need tqdm for verbosity."  
+        for alpha in iterable:
             cloud = BosonCloud.from_parameters(l, m, nr,  m_bh=self.mass_msun,
                                                chi_bh=self.chi, alpha=alpha,
-                                               evolve=evolve)
+                                               **kwargs)
             h0rs.append(cloud.gw(lgw).h0r)
             fgws.append(cloud.gw(lgw).f)
         return np.array(h0rs), np.array(fgws), alphas
@@ -874,7 +881,7 @@ class BlackHoleBoson(object):
 
 
 class BosonCloud(object):
-    def __init__(self, bhb, l, m, nr, evolve=True):
+    def __init__(self, bhb, l, m, nr, evolve=True, evolve_params=None):
         """ Boson cloud around a black hole, corresponding to single level.
 
         Arguments
@@ -922,15 +929,13 @@ class BosonCloud(object):
         self._bhb_final = None
         # solve DEs for cloud evolution, or approximate final values
         self.evolve = evolve  
-        self._evolve_params = {
-            'y_0': 2,
-        }
+        self._evolve_params = evolve_params or {'y_0': 2}
 
     # --------------------------------------------------------------------
     # CLASS METHODS
 
     @classmethod
-    def from_parameters(cls, l, m, nr, evolve=True, **kwargs):
+    def from_parameters(cls, l, m, nr, evolve=True, evolve_params=None, **kwargs):
         bhb = BlackHoleBoson.from_parameters(**kwargs)
         return cls(bhb, l, m, nr, evolve=evolve)
 
@@ -973,8 +978,10 @@ class BosonCloud(object):
         inv_wRs = [1./wR_0]
         wIs = [wI_0]
         sr_conds = [get_sr_cond(x_0, jx_0, T0, epsilon, m=m)]
+        times = [0]
         if not bhb_0.is_superradiant(m):
-            print "WARNING: initial BHB not superradiant for m = %i" % m
+            # print "WARNING: initial BHB not superradiant for m = %i (alpha=%.6f)" \
+            #       % (m, bhb_0.alpha)
             bhb_new = bhb_0
         else:
             # evolve
@@ -997,14 +1004,23 @@ class BosonCloud(object):
                 jxs.append(jx_new)
                 inv_wRs.append(inv_wR_new)
                 wIs.append(wI_new)
+                times.append(times[i] + dtau)
                 # compute SR condition
                 sr_cond = get_sr_cond(x_new, jx_new, T0, epsilon, m=m)
                 sr_conds.append(sr_cond)
-                if (sr_conds[i] - sr_cond < tolerance*sr_cond) and\
-                   (sr_cond < tolerance*sr_conds[0]):
+                # decide whether to terminate
+                frac_decrease = (sr_conds[i] - sr_cond)/float(sr_cond)
+                change_ratio = float(sr_cond)# / sr_conds[0]
+                if frac_decrease < tolerance and (change_ratio < tolerance):
                     break
-        chains = tuple([np.array(l) for l in [xs, jxs, ys, inv_wRs, wIs, sr_conds]])
-        return bhb_new, chains
+                elif frac_decrease < 0.05:
+                    # adapt time step
+                    dtau *= 1.1
+                elif frac_decrease > 0.05:
+                    # adapt time step
+                    dtau *= 0.9
+        cs = tuple([np.array(l) for l in [xs, jxs, ys, inv_wRs, wIs, sr_conds, times]])
+        return bhb_new, cs
 
     # --------------------------------------------------------------------
     # PROPERTIES
