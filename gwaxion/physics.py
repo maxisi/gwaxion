@@ -36,6 +36,10 @@ MPL_SI = np.sqrt(HBAR_SI * C_SI / G_SI)
 # ###########################################################################
 # FUNCTIONS
 
+def get_alpha_max(chi, m=1):
+    # max SR alpha is just Obh_nat, see Eq. (7) in paper
+    return 0.5*m*chi/(1 + np.sqrt(1 - chi**2))
+
 def qcd_axion_mass(fa):
     '''Mass of QCD axion as a function of symmetry breaking scale.
 
@@ -314,18 +318,20 @@ class BlackHole(object):
     # UTILITIES
 
     def scan_alphas(self, l=1, m=1, nr=0, delta_alpha=0.001, alpha_min=0.001,
-                    alpha_max=0.5, lgw=None, verbose=False, **kwargs):
+                    alpha_max=0.5, lgw=None, verbose=False, ncpus=1, **kwargs):
         alphas = np.arange(alpha_min, alpha_max, delta_alpha)
         h0rs, fgws = [], []
         iterable = alphas
+        # determine whether to show progress bar
         if verbose:
             try:
                 from tqdm import tqdm
                 iterable = tqdm(alphas)
             except ImportError:
                 print "WARNING: need tqdm for verbosity."  
+        # iterate
         for alpha in iterable:
-            cloud = BosonCloud.from_parameters(l, m, nr,  m_bh=self.mass_msun,
+            cloud = BosonCloud.from_parameters(l, m, nr, m_bh=self.mass_msun,
                                                chi_bh=self.chi, alpha=alpha,
                                                **kwargs)
             h0rs.append(cloud.gw(lgw).h0r)
