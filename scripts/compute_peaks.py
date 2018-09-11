@@ -132,8 +132,8 @@ class MyPool(multiprocessing.pool.Pool):
 
 # In[16]:
 
-NCPUS_0 = 4 
-NCPUS_1 = 4
+NCPUS_0 = 8 
+NCPUS_1 = 8
 
 def get_gws(a, lgw=2, l=1, m=1, nr=0, **kwargs): 
     cloud = physics.BosonCloud.from_parameters(l, m, nr, alpha=a, **kwargs) 
@@ -167,8 +167,8 @@ def get_row(mbh_chi, distance=1):
 dfpath = 'peak_DE.hdf5'
 rewrite = True
 
-n_mass = 100
-n_chi = 100
+n_mass = 200
+n_chi = 200
 
 mbhs_array = np.logspace(-1, 4, n_mass)
 chis_array = np.linspace(1E-4, 1, n_chi, endpoint=False)

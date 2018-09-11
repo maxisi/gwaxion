@@ -943,9 +943,10 @@ class BosonCloud(object):
     @classmethod
     def from_parameters(cls, l, m, nr, evolve=True, evolve_params=None, **kwargs):
         bhb = BlackHoleBoson.from_parameters(**kwargs)
-        return cls(bhb, l, m, nr, evolve=evolve)
+        return cls(bhb, l, m, nr, evolve=evolve, evolve_params=evolve_params)
 
-    def _evolve_instability(self, y_0=1E-8, dtau=None, max_steps=1E6, tolerance=1e-3):
+    def _evolve_instability(self, y_0=1E-8, dtau=None, max_steps=1E6, tolerance=1e-3,
+                            dtau_adapt_frac=0.1, dtau_adapt_thresh=0.05):
         """ Solve cloud evolution equations, ignoring cloud angular momentum and GW power.
     
         See documentation for `evolve_bhb` for more information.
@@ -1019,12 +1020,12 @@ class BosonCloud(object):
                 change_ratio = float(sr_cond)# / sr_conds[0]
                 if frac_decrease < tolerance and (change_ratio < tolerance):
                     break
-                elif frac_decrease < 0.05:
+                elif frac_decrease < dtau_adapt_thresh:
                     # adapt time step
-                    dtau *= 1.1
-                elif frac_decrease > 0.05:
+                    dtau *= 1. + dtau_adapt_frac
+                elif frac_decrease > dtau_adapt_thresh:
                     # adapt time step
-                    dtau *= 0.9
+                    dtau *= 1. - dtau_adapt_frac
         cs = tuple([np.array(l) for l in [xs, jxs, ys, inv_wRs, wIs, sr_conds, times]])
         return bhb_new, cs
 
