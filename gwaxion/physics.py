@@ -704,6 +704,7 @@ class BlackHoleBoson(object):
         if method == 'detweiler':
             sr = self._sr_factor(m)
             clmn = self._clmn(l, m, nr)
+            # TODO: WARNING! looks like this is the occupancy number growth rate, no wIM!
             omega_im = w0 * a**(4*l +4) * sr * clmn
         elif method == 'zouros':
             number = 2. - np.sqrt(2)

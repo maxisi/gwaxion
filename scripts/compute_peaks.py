@@ -136,7 +136,7 @@ NCPUS_0 = 8
 NCPUS_1 = 8
 
 def get_gws(a, lgw=2, l=1, m=1, nr=0, **kwargs): 
-    cloud = physics.BosonCloud.from_parameters(l, m, nr, alpha=a, **kwargs) 
+    cloud = physics.BosonCloud.from_parameters(l, m, nr, alpha=a, evolve_params={'y_0': 1E-8}, **kwargs) 
     return cloud.gw(lgw).h0r, cloud.gw(lgw).f
 
 def scan_alphas(mbh_chi):
