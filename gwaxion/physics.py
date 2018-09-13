@@ -36,6 +36,20 @@ MPL_SI = np.sqrt(HBAR_SI * C_SI / G_SI)
 # ###########################################################################
 # FUNCTIONS
 
+def get_gw(alpha, lgw=2, l=1, m=1, nr=0, distance=1, **kwargs): 
+    """ Get amplitude and frequency of GW emission for given alpha, and BH properties
+    determined by kwargs.
+    """
+    cloud = BosonCloud.from_parameters(l, m, nr, alpha=alpha, **kwargs) 
+    return cloud.gw(lgw).h0r/distance, cloud.gw(lgw).f
+
+def get_gw_and_times(alpha, lgw=2, l=1, m=1, nr=0, distance=1, **kwargs): 
+    """ Get amplitude and frequency of GW emission for given alpha, and BH properties
+    determined by kwargs.
+    """
+    cloud = BosonCloud.from_parameters(l, m, nr, alpha=alpha, **kwargs) 
+    return cloud.gw(lgw).h0r/distance, cloud.gw(lgw).f, cloud.number_growth_time
+
 def get_alpha_max(chi, m=1):
     # max SR alpha is just Obh_nat, see Eq. (7) in paper
     return 0.5*m*chi/(1 + np.sqrt(1 - chi**2))
@@ -702,9 +716,9 @@ class BlackHoleBoson(object):
         w0 = self.boson.omega
         a = self.alpha
         if method == 'detweiler':
+            # this agrees with Eq. (8) in arXiv:1706.06311
             sr = self._sr_factor(m)
             clmn = self._clmn(l, m, nr)
-            # TODO: WARNING! looks like this is the occupancy number growth rate, no wIM!
             omega_im = w0 * a**(4*l +4) * sr * clmn
         elif method == 'zouros':
             number = 2. - np.sqrt(2)
@@ -936,7 +950,7 @@ class BosonCloud(object):
         self._bhb_final = None
         # solve DEs for cloud evolution, or approximate final values
         self.evolve = evolve  
-        self._evolve_params = evolve_params or {'y_0': 2}
+        self._evolve_params = evolve_params or {'y_0': 1E-8}
 
     # --------------------------------------------------------------------
     # CLASS METHODS
@@ -968,7 +982,7 @@ class BosonCloud(object):
         T0 = G_SI*M0/C_SI**3
         # time step
         epsilon = 1./bhb_0.boson.omega
-        dtau = dtau or self.growth_time/10.
+        dtau = dtau or self.amplitude_growth_time/10.
         # other dimensionfull constants
         alpha = M0
         beta = epsilon*M0*C_SI**2
@@ -1042,13 +1056,19 @@ class BosonCloud(object):
         return self._is_superradiant
 
     @property
-    def growth_time(self):
-        """ Superradiant instability timescale: `1/Im(omega)`.
+    def amplitude_growth_time(self):
+        """ Field amplitude superradiant-instability timescale: `1/Im(omega)`.
         """
         if self._growth_time is None:
             self._growth_time = 1./self.bhb_initial.level_omega_im(self.l, self.m, 
                                                                 self.nr)
         return self._growth_time
+    
+    @property
+    def number_growth_time(self):
+        """ Occupation number superradiant-instability timescale: `0.5/Im(omega)`.
+        """
+        return 2.*self.amplitude_growth_time
 
     @property
     def bh_final(self):
