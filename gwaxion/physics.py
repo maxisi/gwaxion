@@ -186,14 +186,14 @@ def h0_vector_approx(alpha, f=None, m_bh=None, m_b=None, d=PC_SI*1E3,
 def tinst_approx(m, alpha, chi, msun=True):
     if msun:
         m *= MSUN_SI
-    t =  25. * DAYSID_SI * (10*lal.MSUN_SI/m) * (0.1/alpha)**9 / chi
-    return t/YRSID_SI
+    t =  27. * DAYSID_SI * (m/(10*MSUN_SI)) * (0.1/alpha)**9 / chi
+    return t
 
 def tgw_approx(m, alpha, chi, msun=True):
     if msun:
         m *= MSUN_SI
-    t = (6.5E4) * YRSID_SI * (10*lal.MSUN_SI/m) * (0.1/alpha)**15 / chi
-    return t/YRSID_SI
+    t = (6.5E4) * YRSID_SI * (m/(10*MSUN_SI)) * (0.1/alpha)**15 / chi
+    return t
     
 # TODO make these Cloud methods?
 def get_sr_cond(x, jx, T0, epsilon, m=1):
