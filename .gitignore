@@ -1,3 +1,7 @@
+examples/*.hdf5
+examples/*.pdf
+examples/*.png
+#
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
