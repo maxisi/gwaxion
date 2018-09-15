@@ -647,6 +647,9 @@ class BlackHoleBoson(object):
         gamma factor of Eq. (28) in Detweiler (1980), or equivalently
         Clmn factor of Eq. (18) in Arvanitaki & Dubovsky (2011).
 
+        Without the spin correction, this gives a prefactor of 1/24.
+        for the (1, 1, 0) scalar state.
+
         Arguments
         ---------
         l: int
@@ -678,6 +681,7 @@ class BlackHoleBoson(object):
 
     def level_omega_im(self, l, m, nr, method='detweiler'):
         ''' Return imag part of hydrogenic energy eigen-frequencies in rad/s.
+        Importantly, this *half* of the occupancy number grow rate.
         
         Can be computed in different regimes:
 
@@ -717,8 +721,11 @@ class BlackHoleBoson(object):
         a = self.alpha
         if method == 'detweiler':
             # this agrees with Eq. (8) in arXiv:1706.06311
+            # sr = 2 rp^2 (m Obh - w) / c
             sr = self._sr_factor(m)
-            clmn = self._clmn(l, m, nr)
+            # multiply by 0.5 to get field-amplitude growth
+            # that way, here clmn = 1/48. for (1, 1, 0)
+            clmn = 0.5*self._clmn(l, m, nr)
             omega_im = w0 * a**(4*l +4) * sr * clmn
         elif method == 'zouros':
             number = 2. - np.sqrt(2)
