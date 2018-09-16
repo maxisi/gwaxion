@@ -332,7 +332,8 @@ class BlackHole(object):
     # UTILITIES
 
     def scan_alphas(self, l=1, m=1, nr=0, delta_alpha=0.001, alpha_min=0.001,
-                    alpha_max=0.5, lgw=None, verbose=False, ncpus=1, **kwargs):
+                    alpha_max=None, lgw=None, verbose=False, ncpus=1, **kwargs):
+        alpha_max = alpha_max or get_alpha_max(self.chi, m=m)
         alphas = np.arange(alpha_min, alpha_max, delta_alpha)
         h0rs, fgws = [], []
         iterable = alphas
