@@ -36,19 +36,15 @@ MPL_SI = np.sqrt(HBAR_SI * C_SI / G_SI)
 # ###########################################################################
 # FUNCTIONS
 
-def get_gw(alpha, lgw=2, l=1, m=1, nr=0, distance=1, **kwargs): 
+def get_gw(alpha, lgw=2, l=1, m=1, nr=0, distance=1, times=False, **kwargs): 
     """ Get amplitude and frequency of GW emission for given alpha, and BH properties
     determined by kwargs.
     """
     cloud = BosonCloud.from_parameters(l, m, nr, alpha=alpha, **kwargs) 
-    return cloud.gw(lgw).h0r/distance, cloud.gw(lgw).f
-
-def get_gw_and_times(alpha, lgw=2, l=1, m=1, nr=0, distance=1, **kwargs): 
-    """ Get amplitude and frequency of GW emission for given alpha, and BH properties
-    determined by kwargs.
-    """
-    cloud = BosonCloud.from_parameters(l, m, nr, alpha=alpha, **kwargs) 
-    return cloud.gw(lgw).h0r/distance, cloud.gw(lgw).f, cloud.number_growth_time
+    output = [cloud.gw(lgw).h0r/distance, cloud.gw(lgw).f]
+    if times:
+        output.append(cloud.number_growth_time)
+    return output
 
 def get_alpha_max(chi, m=1):
     # max SR alpha is just Obh_nat, see Eq. (7) in paper
