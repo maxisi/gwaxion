@@ -44,6 +44,7 @@ def get_gw(alpha, lgw=2, l=1, m=1, nr=0, distance=1, times=False, **kwargs):
     output = [cloud.gw(lgw).h0r/distance, cloud.gw(lgw).f]
     if times:
         output.append(cloud.number_growth_time)
+        output.append(cloud.get_life_time(lgws=[lgw]))
     return output
 
 def get_alpha_max(chi, m=1):
@@ -942,6 +943,7 @@ class BosonCloud(object):
                              % (l, m, nr))
         # set cloud properties
         self._growth_time = None
+        self._life_time = None
         self._is_superradiant = None
         self._mass = None
         self._mass_msun = None
@@ -1159,6 +1161,19 @@ class BosonCloud(object):
                                                    m=2*self.m, h0r=h0r)
         return self._gws[lgw]
 
+    def get_life_time(self, lgws=None):
+        """ GW timescale, adding lgws listed in argument (def. just 2*l_cloud) .
+        """
+        lgws = self._gws.keys if lgws is None else lgws
+        if len(lgws)==0:
+            lgws = [2*self.l] 
+        powers = []
+        for lgw in lgws:
+            powers.append(self.gw(lgw=lgw).power)
+        rest_energy = self.mass*C_SI**2
+        tgw = rest_energy / sum(powers)
+        return tgw
+    
 
 class Zabs(object):
     # Numerical fits to fine-structure constant alpha (`a`) provided by R Brito
@@ -1221,6 +1236,9 @@ class GravitationalWaveMode(object):
         self.omega = 2*np.pi*self.f
         self.h0r = h0r
         self.r0 = r0
+        # total radiated power in this mode
+        self.power = C_SI**3*(self.omega * self.h0r)**2 / (16.*np.pi*G_SI)
+        # others
         self._swsh = None
         self._polarizations = None
 
