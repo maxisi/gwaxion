@@ -25,3 +25,23 @@ class cached_property(object):
         # setattr redefines the instance's attribute so this doesn't get called again
         setattr(inst, self.name, result)
         return result
+
+import numpy as np
+
+def smooth_data(Z, sigma=2, vmin=-np.inf, vmax=np.inf):
+    ## smooth the contours
+    from scipy.ndimage.filters import gaussian_filter
+    sigma = 2
+    # 1. weird gymnastics to deal with missing data
+    Z = np.ma.filled(Z, np.nan)
+    
+    V = np.ma.filled(Z, 0)
+    V[V!=V] = 0
+    VV = gaussian_filter(V, sigma)
+    
+    W = 0*Z.copy() + 1
+    W[Z!=Z] = 0
+    WW = gaussian_filter(W, sigma)
+    
+    Z_new = VV/WW
+    return np.ma.masked_array(Z_new, mask=((Z_new<vmin) | (Z_new>vmax)))

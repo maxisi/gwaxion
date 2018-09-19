@@ -1164,7 +1164,7 @@ class BosonCloud(object):
     def get_life_time(self, lgws=None):
         """ GW timescale, adding lgws listed in argument (def. just 2*l_cloud) .
         """
-        lgws = self._gws.keys if lgws is None else lgws
+        lgws = self._gws.keys() if lgws is None else lgws
         if len(lgws)==0:
             lgws = [2*self.l] 
         powers = []
