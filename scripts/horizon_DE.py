@@ -155,8 +155,8 @@ if os.path.exists(dfpath) and not rewrite:
     print n_mass, n_chi
 else:
     print "Finding peak numerically..."
-    n_mass = 300
-    n_chi = 300
+    n_mass = 200
+    n_chi = 200
     print n_mass, n_chi
     
     mbhs_array = np.logspace(0, 4, n_mass)
