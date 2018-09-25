@@ -31,7 +31,6 @@ import numpy as np
 def smooth_data(Z, sigma=2, vmin=-np.inf, vmax=np.inf):
     ## smooth the contours
     from scipy.ndimage.filters import gaussian_filter
-    sigma = 2
     # 1. weird gymnastics to deal with missing data
     Z = np.ma.filled(Z, np.nan)
     
