@@ -219,17 +219,25 @@ df_max['tdrift'] = df_cond['tdrift']
 # #################################################################################
 
 ## ALIGO DESIGN
-from lalsimulation import SimNoisePSDaLIGOZeroDetHighPower
+# from lalsimulation import SimNoisePSDaLIGOZeroDetHighPower
+# 
+# flow = 0.001
+# fhig = 1E6
+# freqs = np.linspace(flow, fhig, int(5E6))
+# 
+# psd_des = np.array([SimNoisePSDaLIGOZeroDetHighPower(f) for f in freqs])
+# asd_des = psd_des**0.5
+# 
+# psd_des_interp = interp1d(freqs, psd_des)
+# asd_des_interp = interp1d(freqs, asd_des, bounds_error=False, fill_value=np.inf)
 
-flow = 0.001
-fhig = 1E6
-freqs = np.linspace(flow, fhig, int(5E6))
+vals = np.loadtxt('noise_curves_T1500293-v10/aLIGODesign_T1800044.txt')
+fs, asd_des_array = vals[:,0], vals[:,1]
 
-psd_des = np.array([SimNoisePSDaLIGOZeroDetHighPower(f) for f in freqs])
-asd_des = psd_des**0.5
+# create interpolant (in logspace)
+log_asd_des_interp = interp1d(np.log10(fs), np.log10(asd_des_array), fill_value='extrapolate')
 
-psd_des_interp = interp1d(freqs, psd_des)
-asd_des_interp = interp1d(freqs, asd_des, bounds_error=False, fill_value=np.inf)
+def asd_des_interp(f): lasd=log_asd_des_interp(np.log10(f)); return 10**lasd
 
 asds_dict = {'design': asd_des_interp}
 
@@ -292,6 +300,11 @@ Z_boson = np.ma.masked_array(Z_boson, mask=((Y<0.15)))
 
 force_update = False
 
+zmin, zmax = 1E-5, 1E5
+norm = matplotlib.colors.LogNorm(vmin=zmin, vmax=zmax)
+ticks = ticker.LogLocator(numticks=20, base=10, numdecs=8)
+print "Colorbar max: %r" % zmax
+    
 for name, asd_interp in asds_dict.iteritems():
     print "Processing: %r" % name
     if force_update or 'log_zH_%s' % name not in df_max.keys():
@@ -313,21 +326,20 @@ for name, asd_interp in asds_dict.iteritems():
     logzs = np.ma.masked_array(log_zHs, mask=mask)
     Z = z_to_dl(10**logzs).reshape(n_chi, n_mass)
     
-    fig, ax = plt.subplots(1, figsize=(16,8))
-    
-    zmin, zmax = 1E-6, 10**(np.ceil(np.log10(Z.max())))
-    norm = matplotlib.colors.LogNorm(vmin=zmin, vmax=zmax)
-    print "Colorbar max: %r" % zmax
+    fig, ax = plt.subplots(1, figsize=(11,8))#, figsize=(16,8))
     
     ## smooth the contours
     Z_denoised = utilities.smooth_data(Z, vmin=zmin)
+
+    # manually set the levels
+    lev_exp = np.arange(np.floor(np.log10(zmin)-1),
+                       np.ceil(np.log10(zmax)+1))
+    levs = np.power(10, lev_exp)
     
-    cm = ax.contourf(X, Y, Z_denoised, cmap='magma',
-                     locator=ticker.LogLocator(numticks=48,base=10), norm=norm)
-    
+    cm = ax.contourf(X, Y, Z_denoised, levs, cmap='magma', norm=norm)
+
     ## let's add boson mass contours
-    cs = ax.contour(X, Y, Z_boson, colors='white',
-                    locator=ticker.LogLocator(numticks=48,base=10), alpha=0.9)
+    cs = ax.contour(X, Y, Z_boson, colors='white', locator=ticks, alpha=0.9)
     fmt = lambda v: r"$10^{%i}$" % np.log10(v)
     locs = None#[(2E3, 0.5), (2E2, 0.5), (2E1, 0.5), (2E0, 0.5)]
     plt.clabel(cs, cs.levels[1:], inline=1, fmt=fmt, fontsize=24, use_clabeltext=True, manual=locs)
@@ -336,18 +348,18 @@ for name, asd_interp in asds_dict.iteritems():
     fdot_det = df_max['fdot']*((1. + 10**logzs)**(-2))
     Z = utilities.smooth_data(fdot_det.reshape(n_chi, n_mass), sigma=3)
     Z = np.ma.masked_array(Z, mask=((Y<0.15)))
-    cs = ax.contour(X, Y, Z, colors=('gray',), levels=(1E-8, 10,), alpha=0.2)
+    cs = ax.contour(X, Y, Z, colors=('gray',), levels=(1E-8, 10,), alpha=0.2, extend='both')
     ax.contourf(X, Y, Z, colors='none', levels=[1E-8, 1], alpha=0.1)
     
-    ax.annotate(r"$\dot f > 10^{-8}$ Hz/s", xy=(0.12, 0.72), xycoords="axes fraction", 
-                ha='left', va='bottom', fontsize=22, color='0.4', rotation=15)
+    ax.annotate(r"$\dot f > 10^{-8}$ Hz/s", xy=(0.1, 0.7), xycoords="axes fraction", 
+                ha='left', va='bottom', fontsize=20, color='0.6', rotation=21)
 
     # plot vertical line at 60 Msun
     ax.axvline(60, c='w', ls=':', lw=2)
     ax.axhline(0.7, c='w', ls=':', lw=2)
     
     # add colorbar
-    cb = plt.colorbar(cm, label=r'Horizon (Mpc)', norm=norm)
+    cb = plt.colorbar(cm, label=r'Horizon (Mpc)')
     cb.ax.tick_params(labelsize=18) 
     
     ax.set_xlabel(r'$M_i$')
@@ -359,11 +371,10 @@ for name, asd_interp in asds_dict.iteritems():
     ax.set_xlim(1, 1E4)
     ax.set_ylim(0, 1)
     
-    fig.savefig('cont_chi_mbh_range_%s_DE_tdrift.pdf' % name, bbox_inches='tight', dpi=400)
-    
-    plt.show()
-    plt.close()
-    
+    figpath = 'cont_chi_mbh_range_%s_DE_tdrift.pdf' % name
+    fig.savefig(figpath, bbox_inches='tight', dpi=400)
+    print "Figure saved: %r" % figpath
+
     # print peak properties 
     max_loc = df_cond['log_zH_%s' % name].idxmax()
     max_z = 10**df_cond['log_zH_%s' % name].max()
