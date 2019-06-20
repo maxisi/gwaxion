@@ -51,6 +51,9 @@ def get_alpha_max(chi, m=1):
     # max SR alpha is just Obh_nat, see Eq. (7) in paper
     return 0.5*m*chi/(1 + np.sqrt(1 - chi**2))
 
+def get_final_spin(alpha, m=1):
+    return 4.*alpha*m / (4.*alpha**2 + m**2)
+
 def qcd_axion_mass(fa):
     '''Mass of QCD axion as a function of symmetry breaking scale.
 
@@ -137,7 +140,7 @@ def h0_scalar_brito(m_i, alpha, chi_i=0.9, d=1, l=1, m=1, lgw=None, mgw=None,
 
 
 def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=1,
-                     msun=True, ev=True):
+                     msun=True, ev=True, chi=None):
     """ Analytic approximation to the peak BHB scalar strain from Arvanitaki+.
 
     Arguments
@@ -155,6 +158,9 @@ def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=1,
     if f is None:
         f = a.fgw
     h0 = 1E-24 * (a.alpha/0.1)**8 * (PC_SI*1E3/d) * (1E-12/a.m_b_ev)
+    if chi is not None:
+        # add spin correction
+        h0 *= (chi - get_final_spin(a.alpha)) / 0.1
     return h0, f
 
 
