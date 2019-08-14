@@ -292,10 +292,10 @@ asds_dict['et'] = asd_et_interp
 
 from gwaxion import utilities
 
-X = df_max['mbh'].reshape(n_chi, n_mass)
-Y = df_max['chi'].reshape(n_chi, n_mass)
+X = df_max['mbh'].values.reshape(n_chi, n_mass)
+Y = df_max['chi'].values.reshape(n_chi, n_mass)
 
-Z_boson = utilities.smooth_data(df_max['mu'].reshape(n_chi, n_mass), sigma=3)
+Z_boson = utilities.smooth_data(df_max['mu'].values.reshape(n_chi, n_mass), sigma=3)
 Z_boson = np.ma.masked_array(Z_boson, mask=((Y<0.15)))
 
 force_update = False
@@ -326,7 +326,7 @@ for name, asd_interp in asds_dict.iteritems():
     logzs = np.ma.masked_array(log_zHs, mask=mask)
     Z = z_to_dl(10**logzs).reshape(n_chi, n_mass)
     
-    fig, ax = plt.subplots(1, figsize=(11,8))#, figsize=(16,8))
+    fig, ax = plt.subplots(1, figsize=(16,8))#(11,8))#, figsize=(16,8))
     
     ## smooth the contours
     Z_denoised = utilities.smooth_data(Z, vmin=zmin)
@@ -346,7 +346,7 @@ for name, asd_interp in asds_dict.iteritems():
 
     ## let's add fdot_det contours
     fdot_det = df_max['fdot']*((1. + 10**logzs)**(-2))
-    Z = utilities.smooth_data(fdot_det.reshape(n_chi, n_mass), sigma=3)
+    Z = utilities.smooth_data(fdot_det.values.reshape(n_chi, n_mass), sigma=3)
     Z = np.ma.masked_array(Z, mask=((Y<0.15)))
     cs = ax.contour(X, Y, Z, colors=('gray',), levels=(1E-8, 10,), alpha=0.2, extend='both')
     ax.contourf(X, Y, Z, colors='none', levels=[1E-8, 1], alpha=0.1)
@@ -378,28 +378,28 @@ for name, asd_interp in asds_dict.iteritems():
     # print peak properties 
     max_loc = df_cond['log_zH_%s' % name].idxmax()
     max_z = 10**df_cond['log_zH_%s' % name].max()
-    print "\n Furthest horizon: %.1f Mpc (z=%.2e)" % (z_to_dl(max_z), max_z)
+    print "\n Farthest horizon: %.1f Mpc (z=%.2e)" % (z_to_dl(max_z), max_z)
     print pd.DataFrame([df_cond.loc[max_loc][['mbh', 'chi', 'alpha', 'boson', 'h0', 'fgw', 'fdot', 'tinst']]])
     test_z = 10**compute_log_zH_brentq(5E-26, 200, asd_interp)
     # print "\nGW150914 horizon: %.1f Mpc (z=%.2e)" % (z_to_dl(test_z), test_z)
     # test_z = 10**compute_log_zH_leastsq(5E-26, 200, asd_interp)
     # print "GW150914 horizon: %.1f Mpc (z=%.2e)" % (z_to_dl(test_z), test_z)
 
-    # print "Computing examples..."
-    # # EXAMPLES
-    # distance = 5E6*physics.PC_SI
-    # mbh_chis = [(3, 0.9), (10, 0.9), (60, 0.7), (60, 0.9), (200, 0.85), (300, 0.95)]
-    # df = pd.DataFrame([get_peak_row_time(mbh_chi, distance=distance) for mbh_chi in mbh_chis])
-    # df['mu'] = df.apply(lambda row: get_boson(row), axis=1)
-    # df['fdot'] = df.apply(lambda row: get_fdot(row), axis=1)
-    # df['tdrift'] = df.apply(lambda row: get_tdrift(row), axis=1)
-    # log_zHs = []
-    # for h0, f0, tdrift in zip(df['h0'], df['fgw'], df['tdrift']):
-    #     log_zHs.append(compute_log_zH_brentq(h0, f0, asd_interp, tdrift=tdrift))
-    # log_zHs = np.array(log_zHs)
-    # df['zH_%s' % name] = 10**log_zHs
-    # df['H_%s' % name] = z_to_dl(10**log_zHs)
-    # print df
+    print "Computing examples..."
+    # EXAMPLES
+    distance = 5E6*physics.PC_SI
+    mbh_chis = [(3, 0.9), (10, 0.9), (60, 0.7), (60, 0.9), (200, 0.85), (300, 0.95)]
+    df = pd.DataFrame([get_peak_row_time(mbh_chi, distance=distance) for mbh_chi in mbh_chis])
+    df['mu'] = df.apply(lambda row: get_boson(row), axis=1)
+    df['fdot'] = df.apply(lambda row: get_fdot(row), axis=1)
+    df['tdrift'] = df.apply(lambda row: get_tdrift(row), axis=1)
+    log_zHs = []
+    for h0, f0, tdrift in zip(df['h0'], df['fgw'], df['tdrift']):
+        log_zHs.append(compute_log_zH_brentq(h0, f0, asd_interp, tdrift=tdrift))
+    log_zHs = np.array(log_zHs)
+    df['zH_%s' % name] = 10**log_zHs
+    df['H_%s' % name] = z_to_dl(10**log_zHs)
+    print df
 
     print "-------- (end of %s) --------\n" % name
 
