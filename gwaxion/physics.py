@@ -913,7 +913,7 @@ class BlackHoleBoson(object):
 
 
 class BosonCloud(object):
-    def __init__(self, bhb, l, m, nr, evolve=True, evolve_params=None):
+    def __init__(self, bhb, l, m, nr, evolve=True, evolve_params=None, from_final=False):
         """ Boson cloud around a black hole, corresponding to single level.
 
         Arguments
@@ -928,16 +928,26 @@ class BosonCloud(object):
             radial quantum number.
         evolve: bool
             whether to compute final BH mass and spin numerically or approximate.
+        from_final: bool
+            interpret `bhb` as the post-SR, rahter than pre, black-hole-boson system.
         """
         # check `bhb` is of the right type
-        self.bhb_initial = bhb
         try:
-            self.bhb_initial.boson.reduced_compton_wavelength
-            self.bhb_initial.bh.rg
+            bhb.boson.reduced_compton_wavelength
+            bhb.bh.rg
         except AttributeError:
             raise ValueError("'bhb' must be `BlackHoleBoson` instance, not %r"
                              % type(boson))
-        self.bh_initial = self.bhb_initial.bh
+        if from_final:
+            self._bh_initial = None
+            self._bhb_initial = None
+            self._bhb_final = bhb
+            self._bh_final = self.bhb_final.bh
+        else:
+            self._bhb_initial = bhb
+            self._bh_initial = self.bhb_initial.bh
+            self._bh_final = None
+            self._bhb_final = None
         # check consistency of quantum numbers
         if (0 <= l) & (np.abs(m) <= l) & (0 <= nr) & isinstance(nr*l*m, int):
             self.n = nr + l + 1  # principal quantum number
@@ -948,8 +958,9 @@ class BosonCloud(object):
             raise ValueError("invalid quantum numbers (l, m, nr) = (%r, %r, %r)"
                              % (l, m, nr))
         # set cloud properties
+        self.age = 0  # age is the actual age of the cloud after evolving
         self._growth_time = None
-        self._life_time = None
+        self._life_time = None  # lifetime is the characteristic duration of the cloud
         self._is_superradiant = None
         self._mass = None
         self._mass_msun = None
@@ -957,9 +968,6 @@ class BosonCloud(object):
         self._zabs = {}
         self._gws = {}
         self._fgw = None
-        # others
-        self._bh_final = None
-        self._bhb_final = None
         # solve DEs for cloud evolution, or approximate final values
         self.evolve = evolve  
         self._evolve_params = evolve_params or {'y_0': 1E-8}
@@ -968,12 +976,38 @@ class BosonCloud(object):
     # CLASS METHODS
 
     @classmethod
-    def from_parameters(cls, l, m, nr, evolve=True, evolve_params=None, **kwargs):
+    def from_parameters(cls, l, m, nr, evolve=True, evolve_params=None,
+                        from_final=False, **kwargs):
         bhb = BlackHoleBoson.from_parameters(**kwargs)
-        return cls(bhb, l, m, nr, evolve=evolve, evolve_params=evolve_params)
+        return cls(bhb, l, m, nr, evolve=evolve, evolve_params=evolve_params,
+                   from_final=from_final)
+
+    # TODO: optimize
+    def _backtrack_instability(self, **kwargs):
+        # get guesses for initial BH parameters if provided
+        m_i_0 = kwargs.pop('m_i_0', 1.11*self.bhb_final.bh.mass)
+        m_i_frac_0 = m_i_0 / self.bhb_final.bh.mass
+        chi_i_0 = kwargs.pop('chi_i_0', 1.)
+        initial_guess = np.array([m_i_frac_0, chi_i_0])
+        def evolve(mfrac_chi):
+            m_i_frac, chi_i = mfrac_chi
+            bh_i = BlackHole(m_i_frac*self.bhb_final.bh.mass, chi=chi_i)
+            bhb_i = BlackHoleBoson(bh_i, self.bhb_final.boson)
+            cloud = BosonCloud(bhb_i, self.l, self.m, self.nr, **kwargs)
+            m_f = cloud.bhb_final.bh.mass
+            chi_f = cloud.bhb_final.bh.chi
+            dm_frac = (m_f - self.bhb_final.bh.mass)/self.bhb_final.bh.mass
+            dchi = chi_f - self.bhb_final.bh.chi
+            return np.sqrt(dm_frac**2 + dchi**2)
+        from scipy.optimize import minimize
+        res = minimize(evolve, initial_guess, method='L-BFGS-B',
+                       bounds=[(1., 1.4), (self.bhb_final.bh.chi, 0.99999)])
+        print res
+        return res
 
     def _evolve_instability(self, y_0=1E-8, dtau=None, max_steps=1E6, tolerance=1e-3,
-                            dtau_adapt_frac=0.1, dtau_adapt_thresh=0.05):
+                            dtau_adapt_frac=0.1, dtau_adapt_thresh=0.05,
+                            m_accretion_rate=0, j_accretion_rate=0, bhb_0=None):
         """ Solve cloud evolution equations, ignoring cloud angular momentum and GW power.
     
         See documentation for `evolve_bhb` for more information.
@@ -985,7 +1019,7 @@ class BosonCloud(object):
         -------
     
         """
-        bhb_0 = self.bhb_initial
+        bhb_0 = bhb_0 or self.bhb_initial
         l = self.l
         m = self.m
         nr = self.nr
@@ -1005,6 +1039,9 @@ class BosonCloud(object):
         n = l + nr + 1
         wR_0 = bhb_0.level_omega_re(n) * epsilon
         wI_0 = bhb_0.level_omega_im(l, m, nr) * epsilon
+        # dimensionless accretion rates
+        dimless_m_accretion_rate = m_accretion_rate * C_SI**2 / gamma
+        dimless_j_accretion_rate = j_accretion_rate * epsilon / beta
         # initialize arrays
         xs = [x_0]
         ys = [y_0]
@@ -1022,10 +1059,11 @@ class BosonCloud(object):
             for i in range(int(max_steps)):
                 # update x & j
                 dx = - 2*wIs[i]*ys[i]*dtau
-                x_new = xs[i] + dx
+                x_new = xs[i] + dx + dimless_m_accretion_rate*dtau
                 y_new = ys[i] - dx 
                 # update jx & jy
-                jx_new = jxs[i] - 2*m*wIs[i]*inv_wRs[i]*ys[i]*dtau
+                jx_new = jxs[i] - 2*m*wIs[i]*inv_wRs[i]*ys[i]*dtau +\
+                         dimless_j_accretion_rate*dtau
                 # update w's
                 # TODO: optimize this to not rely on BH and BHB objects
                 bh = BlackHole(x_new*alpha, j=jx_new*beta)
@@ -1081,6 +1119,43 @@ class BosonCloud(object):
         """ Occupation number superradiant-instability timescale: `0.5/Im(omega)`.
         """
         return 2.*self.amplitude_growth_time
+
+    @property
+    def bh_initial(self):
+        """ Black-hole before start of superradiant cloud growth.
+        """
+        if self._bh_initial is None:
+            if self.evolve:
+                self._bh_initial = self.bhb_initial.bh
+            else:
+                # initial BH angular momentum from Eq. (25) in Brito et al.
+                # approximating the final alpha with the initial alpha
+                rg = self.bh_final.rg
+                w = self.bhb_final.level_omega_re(self.n)
+                chi_f = self.bhb_final.bh.chi
+                m_i = (2*(C_SI*rg*w + np.sqrt((C_SI*rg*w)**2 - 
+                                              (chif*C_SI*rg*w)**2)))/\
+                      (chif*C_SI**2)
+                # initial BH spin from Eq. (26) in Brito et al.
+                w_nat = self.bhb_final.level_omega_natural(self.n)
+                chi_i = (m_i + chi_f*m_i*w_nat - m_f) / (m_i*w_nat)
+                self._bh_initial = BlackHole(m_i, chi_i) 
+        return self._bh_initial
+
+    @property
+    def bhb_initial(self):
+        """ Black-hole-boson before start of superradiant cloud growth.
+        """
+        if self._bhb_initial is None:
+            if self.evolve:
+                self._bhb_initial, _ = self._backtrack_instability(evolve_params=self._evolve_params)
+                # note that the value of y_0 does not affect final state,
+                # but a higher value means fewer steps
+            else:
+                self._bhb_initial = BlackHoleBoson(self.bh_initial,
+                                                   self.bhb_final.boson)
+        return self._bhb_initial
+
 
     @property
     def bh_final(self):
@@ -1242,8 +1317,8 @@ class GravitationalWaveMode(object):
         self.omega = 2*np.pi*self.f
         self.h0r = h0r
         self.r0 = r0
-        # total radiated power in this mode
-        self.power = C_SI**3*(self.omega * self.h0r)**2 / (16.*np.pi*G_SI)
+        # total radiated power in this mode (ATTENTION: +/- m both included)
+        self.power = C_SI**3*(self.omega * self.h0r)**2 / (8.*np.pi*G_SI)
         # others
         self._swsh = None
         self._polarizations = None

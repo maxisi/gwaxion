@@ -80,7 +80,8 @@ def dl_to_z(dl, z0=1):
 # define h and z factors
 
 orientation_factor = 2.8  # factor to convert from avg. orientation to optimal orientation
-h95ref = 4.7E-26 / orientation_factor
+slm_factor = 0.5*np.sqrt(5/np.pi)  # factor to convert LIGO h0 convention to convention in Eq. (26)
+h95ref = 4.7E-26 / (orientation_factor * slm_factor)
 asd95ref = 4E-24
 tdriftref = 8*physics.DAYSID_SI
 
