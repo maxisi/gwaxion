@@ -82,6 +82,7 @@ def find_best_gw(mbh_chi, ncpus=2, alpha_thresh=0.01, alpha_step=0.01, **kwargs)
         pool = multiprocessing.Pool(ncpus)
         outputs = pool.map(partial(physics.get_gw, m_bh=mbh, chi_bh=chi, times=True,
                                       **kwargs), alphas)
+        pool.close()
         (hmax, fmax, tinst, tgw), amax = max(zip(outputs, alphas))
         return hmax, fmax, tinst, tgw, amax
 

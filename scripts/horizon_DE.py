@@ -143,8 +143,8 @@ dfpath = 'peak_DE.hdf5'
 #dfpath = 'peak_DE_both-times.hdf5'
 rewrite = False
 
-NCPUS_0 = 8
-NCPUS_1 = 8
+NCPUS_0 = 2
+NCPUS_1 = 2
 
 if os.path.exists(dfpath) and not rewrite:
     print "Loading file: %r" % dfpath
@@ -174,6 +174,7 @@ else:
     # run over Ms and chis
     pool = MyPool(NCPUS_0)
     rows = pool.map(partial(get_peak_row_time, distance=distance, ncpus=NCPUS_1), mbh_chis)
+    pool.close()
     df_max = pd.DataFrame(rows)
     df_max.to_hdf(dfpath, 'table', mode='w')
     
