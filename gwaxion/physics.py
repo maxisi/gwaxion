@@ -346,7 +346,7 @@ class BlackHole(object):
                 from tqdm import tqdm
                 iterable = tqdm(alphas)
             except ImportError:
-                print "WARNING: need tqdm for verbosity."  
+                print("WARNING: need tqdm for verbosity.")
         # iterate
         for alpha in iterable:
             cloud = BosonCloud.from_parameters(l, m, nr, m_bh=self.mass_msun,
@@ -1002,7 +1002,6 @@ class BosonCloud(object):
         from scipy.optimize import minimize
         res = minimize(evolve, initial_guess, method='L-BFGS-B',
                        bounds=[(1., 1.4), (self.bhb_final.bh.chi, 0.99999)])
-        print res
         return res
 
     def _evolve_instability(self, y_0=1E-8, dtau=None, max_steps=1E6, tolerance=1e-3,
