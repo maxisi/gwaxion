@@ -328,7 +328,8 @@ for name, asd_interp in asds_dict.iteritems():
     logzs = np.ma.masked_array(log_zHs, mask=mask)
     Z = z_to_dl(10**logzs).reshape(n_chi, n_mass)
     
-    fig, ax = plt.subplots(1, figsize=(16,8))#(11,8))#, figsize=(16,8))
+    # fig, ax = plt.subplots(1, figsize=(16,8))
+    fig, ax = plt.subplots(1, figsize=(11,8))
     
     ## smooth the contours
     Z_denoised = utilities.smooth_data(Z, vmin=zmin)
@@ -402,6 +403,7 @@ for name, asd_interp in asds_dict.iteritems():
     df['zH_%s' % name] = 10**log_zHs
     df['H_%s' % name] = z_to_dl(10**log_zHs)
     print df
+    df.to_hdf('examples_%s.h5' % name, 'table', mode='w')
 
     print "-------- (end of %s) --------\n" % name
 
