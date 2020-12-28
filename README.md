@@ -1,3 +1,4 @@
+[![github](https://img.shields.io/badge/GitHub-gwaxion-blue)](https://github.com/maxisi/gwaxion)
 [![Documentation Status](https://readthedocs.org/projects/gwaxion/badge/?version=latest)](https://gwaxion.readthedocs.io/en/latest/?badge=latest)
 
 # gwaxion
