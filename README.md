@@ -22,7 +22,7 @@ pip install gwaxion
 
 ## Usage
 
-Here is a barebones example to get some properties of a given black-hole--boson system, for a BH with $M = 50 M_\odot$ and $\chi = 0.9$, and a boson with mass such that $\alpha = 0.2$.
+Here is a barebones example to get some properties of a given black-hole--boson system, for a BH with mass `M = 50 Msun` and dimensionless spin `chi = 0.9`, and a boson with mass such that `alpha = 0.2`.
 
 ``` python
 import gwaxion
