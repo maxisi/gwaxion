@@ -42,7 +42,7 @@ For more examples see the `examples/` directory.
 
 ## Credit
 
-This code was developed by [Maximiliano Isi](http://maxisi.me) with important contributions by Richard Brito.
+This code was developed by [Maximiliano Isi](http://maxisi.me) with important contributions by [Richard Brito](https://richardbrito.weebly.com).
 
 If you make use of this code for your own publications, please cite:
 ```
