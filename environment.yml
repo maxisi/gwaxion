@@ -1,0 +1,19 @@
+name: gwaxion
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - astropy
+  - corner
+  - h5py
+  - ipython
+  - jupyterlab
+  - lalsuite
+  - matplotlib
+  - numpy
+  - pandas
+  - pip
+  - python=3.7
+  - scipy
+  - seaborn
+  - numexpr

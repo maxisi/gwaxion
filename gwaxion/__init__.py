@@ -1,4 +1,4 @@
-import physics
+from .physics import *
 # import matplotlib
 # matplotlib.use('Agg')
 # 

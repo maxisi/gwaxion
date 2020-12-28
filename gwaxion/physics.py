@@ -1,4 +1,4 @@
-# Copyright (C) 2018 Maximiliano Isi
+# Copyright (C) 2018 Maximiliano Isi, Richard Brito
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
@@ -15,7 +15,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 import numpy as np
-from scipy.misc import factorial
+from scipy.special import factorial
 from . import leavers
 from .utilities import *
 
@@ -23,11 +23,11 @@ try:
     # if LAL is available, import constants for better accuracy (?)
     from lal import C_SI, G_SI, HBAR_SI, PC_SI, MSUN_SI, DAYSID_SI, YRSID_SI 
 except ImportError:
-		G_SI = 6.674e-11  # m^3 kg^-1 ss^-2
-		C_SI = 299792458  # m ss^-1
-		HBAR_SI = 1.054571e-34  # kg m^2 ss^-2*ss
-		PC_SI = 3.08567758e16  # m
-		MSUN_SI = 1.9891e30  # kg
+    G_SI = 6.674e-11  # m^3 kg^-1 ss^-2
+    C_SI = 299792458  # m ss^-1
+    HBAR_SI = 1.054571e-34  # kg m^2 ss^-2*ss
+    PC_SI = 3.08567758e16  # m
+MSUN_SI = 1.9891e30  # kg
 
 EV_SI = 1.602176565e-19  # kg (m ss^-1)^2    
 MPL_SI = np.sqrt(HBAR_SI * C_SI / G_SI)
@@ -71,7 +71,6 @@ def qcd_axion_mass(fa):
     '''
     return 6E-10 * (1E16 * 1E9 / fa)
 
-
 def hydrogenic_level(n, alpha):
     ''' Return hydrogenic levels: (En / E0)
 
@@ -90,7 +89,6 @@ def hydrogenic_level(n, alpha):
         dimensionless level (En / E0).
     '''
     return 1 - 0.5 * (alpha/n)**2
-
 
 # TODO: make these static methods of BlackHoleBoson?
 def h0_scalar_brito(m_i, alpha, chi_i=0.9, d=1, l=1, m=1, lgw=None, mgw=None,
@@ -138,7 +136,6 @@ def h0_scalar_brito(m_i, alpha, chi_i=0.9, d=1, l=1, m=1, lgw=None, mgw=None,
     h0 = G_SI*2*zabs*m_c / (d * C_SI**2 * mwgw**2)
     return h0, fgw
 
-
 def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=1,
                      msun=True, ev=True, chi=None):
     """ Analytic approximation to the peak BHB scalar strain from Arvanitaki+.
@@ -163,7 +160,6 @@ def h0_scalar_approx(alpha, f=None, m_bh=None, m_b=None, d=1,
         h0 *= (chi - get_final_spin(a.alpha)) / 0.1
     return h0, f
 
-
 def h0_vector_approx(alpha, f=None, m_bh=None, m_b=None, d=PC_SI*1E3, 
                      msun=True, ev=True):
     """ Analytic approximation to the peak BHB vector strain from Arvanitaki+.
@@ -184,7 +180,6 @@ def h0_vector_approx(alpha, f=None, m_bh=None, m_b=None, d=PC_SI*1E3,
         f = a.m_b_ev / (HBAR_SI*np.pi)
     h0 = 5E-21 * (a.alpha/0.1)**6 * (PC_SI*1E3/d) * (1E-12/a.m_b_ev)
     return h0, f
-
 
 def tinst_approx(m, alpha, chi, msun=True):
     if msun:
@@ -373,7 +368,8 @@ class BlackHole(object):
         if (l, m, lgw) not in self._h0r_fits:
             from scipy.interpolate import interp1d
             h0rs, fgws, _ = self.scan_alphas(l=l, m=m, lgw=lgw, **kwargs)
-            self._h0r_fits[(l, m, lgw)] = interp1d(fgws, h0rs)
+            self._h0r_fits[(l, m, lgw)] = interp1d(fgws, h0rs, fill_value=0,
+                                                   bounds_error=False)
         return self._h0r_fits[(l, m, lgw)](f)
 
     def fgw(self, alpha=None, l=1, nr=0, m_b=None, ev=True):
@@ -1027,7 +1023,7 @@ class BosonCloud(object):
         T0 = G_SI*M0/C_SI**3
         # time step
         epsilon = 1./bhb_0.boson.omega
-        dtau = dtau or self.amplitude_growth_time/10.
+        dtau = dtau or self.amplitude_growth_time/1000.
         # other dimensionfull constants
         alpha = M0
         beta = epsilon*M0*C_SI**2
