@@ -1,12 +1,30 @@
-#!/usr/bin/env python
+import setuptools
 
-from distutils.core import setup
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
 
-setup(name='gwAxion',
-      version='1.0',
-      description='Black-hole boson gravitational-wave utilities',
-      author='Maximiliano Isi',
-      author_email='max.isi@ligo.org',
-      url='https://',
-      packages=['gwaxion'],
-     )
+setuptools.setup(
+    name="gwaxion-maxisi", # Replace with your own username
+    version="0.0.1",
+    author="Maximiliano Isi",
+    author_email="max.isi@ligo.org",
+    description="Black-hole boson gravitational-wave package.",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/pypa/sampleproject",
+    packages=setuptools.find_packages(),
+    classifiers=[
+        "Intended Audience :: Science/Research",
+        "Natural Language :: English",
+        "Topic :: Scientific/Engineering :: Physics",
+        "Topic :: Scientific/Engineering :: Astronomy",
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+    ],
+    python_requires='>=3.6',
+    install_requires=[
+        'numpy',
+        'scipy',
+    ],
+)
