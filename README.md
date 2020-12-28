@@ -1,3 +1,5 @@
+[![Documentation Status](https://readthedocs.org/projects/gwaxion/badge/?version=latest)](https://gwaxion.readthedocs.io/en/latest/?badge=latest)
+
 # gwaxion
 
 This is a package to facilitate computations related to gravitational waves from ultralight-boson condensates around black holes.
