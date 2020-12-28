@@ -9,6 +9,7 @@ The code was primarilty developed in writing [arXiv:1810.03812](https://arxiv.or
 The primary objects in this package are:
 - `BlackHoleBoson`
 - `BosonCloud`
+
 Their use, as well as other features, is demonstrated in a set of Jupyter notebooks in the `examples/` directory.
 
 Computations of boson cloud evolution and gravitational-wave emission rely on results from [arXiv:1411.0686](https://arxiv.org/abs/1411.0686) and [arXiv:1706.06311](https://arxiv.org/abs/1706.06311).
