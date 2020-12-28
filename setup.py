@@ -4,8 +4,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="gwaxion-maxisi", # Replace with your own username
-    version="0.0.2",
+    name="gwaxion",
+    version="0.0.1",
     author="Maximiliano Isi",
     author_email="max.isi@ligo.org",
     description="Black-hole boson gravitational-wave package.",
