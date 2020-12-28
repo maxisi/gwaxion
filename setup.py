@@ -11,7 +11,7 @@ setuptools.setup(
     description="Black-hole boson gravitational-wave package.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/pypa/sampleproject",
+    url="https://github.com/maxisi/gwaxion",
     packages=setuptools.find_packages(),
     classifiers=[
         "Intended Audience :: Science/Research",
