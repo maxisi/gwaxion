@@ -1,6 +1,7 @@
 [![github](https://img.shields.io/badge/GitHub-gwaxion-blue)](https://github.com/maxisi/gwaxion)
 [![PyPI version](https://badge.fury.io/py/gwaxion.svg)](https://badge.fury.io/py/gwaxion)
 [![Documentation Status](https://readthedocs.org/projects/gwaxion/badge/?version=latest)](https://gwaxion.readthedocs.io/en/latest/?badge=latest)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4399365.svg)](https://doi.org/10.5281/zenodo.4399365)
 
 # gwaxion
 
@@ -49,7 +50,7 @@ For more examples see the `examples/` directory.
 
 This code was developed by [Maximiliano Isi](http://maxisi.me) with important contributions by [Richard Brito](https://richardbrito.weebly.com).
 
-If you make use of this code for your own publications, please cite:
+If you make use of this code for your own publications, please refer to the Zenodo DOI (see blue badge above) and cite:
 ```
 @article{Isi:2018pzk,
     author = "Isi, Maximiliano and Sun, Ling and Brito, Richard and Melatos, Andrew",
