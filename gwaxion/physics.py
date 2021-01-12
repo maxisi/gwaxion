@@ -203,6 +203,17 @@ def tgw_approx(m, alpha, chi, msun=True):
 def get_sr_cond(x, jx, T0, epsilon, m=1):
     return jx - x**2 * (m*x - jx) * 4*T0**2/(m*epsilon)**2
 
+def Z22fit(a):
+    if (a <= 0.20):
+        return 0.7904787874157165*a**8 - 3.7424860251567065*a**9 + 8.014109763942045*a**10
+    elif (a > 0.20 and a <= 0.32):
+        return 0.004916101490720274*a  - 0.03147120978236612*a**2 + 0.08775988014052985*a**3 - 0.08822040008857081*a**4 - 0.0002843701901412038
+    elif (a > 0.32 and a <= 0.39):
+        return 0.030448009925872987*a - 0.15871207790615727*a**2 + 0.3678694551762226*a**3 - 0.31822691778030665*a**4 - 0.002191953405332143
+    else:
+        return 57.61596540418577 - 799.870254999872*a + 4621.284921350437*a**2 - 14222.17764949403*a**3 + 24588.66580766965*a**4 - 22642.55327085838*a**5 + 8675.73911658002*a**6
+        
+Z22fitvec=np.vectorize(Z22fit)
 
 # ###########################################################################
 # CLASSES
@@ -1262,9 +1273,8 @@ class Zabs(object):
     # (set up this way to make it easier to add fits dynamically later.)
     # NOTE: these fits assume `chi = chi_f`, could generalize to arbitrary spin
     _FITS = {
-        (2, 2): lambda a: 0.7904787874157165*a**8 - 2.9417505987440284*a**9 +\
-                          2.803119859556814*a**10,
-        (3, 2): lambda a: 1.08158476738751*a**10 - 0.4006416305003071*a**12,
+        (2, 2): lambda a : Z22fitvec(a) if isinstance(a, (list, tuple, np.ndarray)) else Z22fit(a),
+        (3, 2): lambda a: 1.0956326467084279*a**10 - 6.937259458016552*a**12 + 28.671829466292383*a**14,
     }
 
     def __init__(self, l, m):
